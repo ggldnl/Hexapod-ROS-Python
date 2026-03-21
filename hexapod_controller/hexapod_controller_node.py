@@ -33,8 +33,8 @@ class HexapodControllerNode(Node):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
 
-        self.leg_names = [k for k, v in config['kinematics']['legs'].items() if isinstance(v, dict)]
-        self._joint_names = [f'leg_{i+1}_{joint}' for i, leg in enumerate(self.leg_names) for joint in ['coxa', 'femur', 'tibia']]
+        self._leg_names = [k for k, v in config['kinematics']['legs'].items() if isinstance(v, dict)]
+        self._joint_names = [f'leg_{i+1}_{joint}' for i, leg in enumerate(self._leg_names) for joint in ['coxa', 'femur', 'tibia']]
 
         # Create the controller
         kernel = HexapodKernel(port=serial_port, baud=serial_baud)
