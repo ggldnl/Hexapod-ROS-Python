@@ -1,9 +1,11 @@
 import os
 import time
 import yaml
+import math
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import String, Header
+from sensor_msgs.msg import JointState
 from importlib import resources
 
 import controller
@@ -16,7 +18,7 @@ class HexapodControllerNode(Node):
         super().__init__('hexapod_controller_node')
 
         # Use default config inside Hexapod-Controller. We can always specify a new config file as parameter
-        default_config_path = resources.files('controller.config') / 'config.yml'
+        default_config_path = resources.files('controller') / 'config' / 'config.yml'
         self.declare_parameter('config_path', str(default_config_path))
         self.declare_parameter('serial_port', '/dev/ttyAMA0')
         self.declare_parameter('serial_baud', 115200)
@@ -31,23 +33,60 @@ class HexapodControllerNode(Node):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
 
+        self.leg_names = [k for k, v in config['kinematics']['legs'].items() if isinstance(v, dict)]
+        self._joint_names = [f'leg_{i+1}_{joint}' for i, leg in enumerate(self.leg_names) for joint in ['coxa', 'femur', 'tibia']]
+
         # Create the controller
         kernel = HexapodKernel(port=serial_port, baud=serial_baud)
         interface = HexapodInterface(kernel, config)
         self._controller = HexapodController(interface, config)
 
+        # Publishers
+        self._state_pub = self.create_publisher(String, '/hexapod/state', 10)
+        self._joints_pub = self.create_publisher(JointState, '/hexapod/joint_values', 10)
+
         # Create timer for control loop
         controller_rate = config['control']['update_rate']
         self._controller_dt = 1.0 / controller_rate
-        self._node_dt = 1.0 / node_rate
         self._last_frame = time.perf_counter()
         self.create_timer(self._controller_dt, self._timer_cb)
+
+        self._node_dt = 1.0 / node_rate
+        self.create_timer(self._node_dt, self._publish_cb)
 
         ros_distro = os.environ.get("ROS_DISTRO")
         self.get_logger().info('HexapodControllerNode started')
         self.get_logger().info(f'Controller version: {controller.__version__}')
         self.get_logger().info(f'ROS distro        : {ros_distro}')
+        self.get_logger().info(f'Controller rate   : {controller_rate:.0f} Hz')
+        self.get_logger().info(f'Node rate         : {node_rate} Hz')
 
+    def _publish_cb(self):
+        status = self._controller.get_status()
+        self._publish_state(status)
+        self._publish_joints(status)
+
+    def _publish_state(self, status: dict):
+        msg = String()
+        msg.data = status.get('state', 'UNKNOWN')
+        self._state_pub.publish(msg)
+
+    def _publish_joints(self, status: dict):
+        joint_values = status.get('joint_values', {})
+        if not joint_values:
+            return
+
+        msg = JointState()
+        msg.header = Header()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.name = self._joint_names
+        msg.position = [
+            math.radians(angle)
+            for leg in self._leg_names
+            for angle in joint_values.get(leg, [0.0, 0.0, 0.0])
+        ]
+
+        self._joints_pub.publish(msg)
 
     def _timer_cb(self):
 
