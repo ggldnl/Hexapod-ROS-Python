@@ -23,7 +23,6 @@ setup(
     maintainer_email='danielgigliotti99.dg@gmail.com',
     description='ROS2 python node wrapping hexapod controller',
     license='MIT',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'hexapod_controller = hexapod_controller.hexapod_controller_node:main',
