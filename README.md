@@ -18,6 +18,12 @@ which was specifically designed to target Ubuntu 24.04 as its primary platform.
 > sudo apt update && sudo apt install ros-dev-tools
 > ```
 
+### Install dependencies
+
+```bash
+sudo apt install ros-jazzy-tf-transformations
+```
+
 ### Clone the repo
 
 Clone the repo. For simplicity, I will assume the ROS workspace is in the `home` folder. 
