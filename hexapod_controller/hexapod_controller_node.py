@@ -2,11 +2,16 @@ import os
 import time
 import yaml
 import math
-import rclpy
-from rclpy.node import Node
-from std_msgs.msg import String, Header
-from sensor_msgs.msg import JointState
 from importlib import resources
+
+import rclpy
+import tf2_ros
+from rclpy.node import Node
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import JointState
+from geometry_msgs.msg import TransformStamped
+from std_msgs.msg import String, Header, Float32
+from tf_transformations import quaternion_from_euler
 
 import controller
 from controller import HexapodController, HexapodKernel, HexapodInterface
@@ -22,7 +27,7 @@ class HexapodControllerNode(Node):
         self.declare_parameter('config_path', str(default_config_path))
         self.declare_parameter('serial_port', '/dev/ttyAMA0')
         self.declare_parameter('serial_baud', 115200)
-        self.declare_parameter('node_rate', 50.0)  # Hz - ROS2 node publishing rate
+        self.declare_parameter('node_rate', 20.0)  # Hz - ROS2 node publishing rate
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         serial_port = self.get_parameter('serial_port').get_parameter_value().string_value
@@ -44,6 +49,11 @@ class HexapodControllerNode(Node):
         # Publishers
         self._state_pub = self.create_publisher(String, '/hexapod/state', 10)
         self._joints_pub = self.create_publisher(JointState, '/hexapod/joint_values', 10)
+        self._odom_pub = self.create_publisher(Odometry, '/hexapod/odom', 10)
+        self._voltage_pub = self.create_publisher(Float32, '/hexapod/battery_voltage', 10)
+        self._current_pub = self.create_publisher(Float32, '/hexapod/current_draw', 10)
+
+        self._tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         # Create timer for control loop
         controller_rate = config['control']['update_rate']
@@ -61,10 +71,17 @@ class HexapodControllerNode(Node):
         self.get_logger().info(f'Controller rate   : {controller_rate:.0f} Hz')
         self.get_logger().info(f'Node rate         : {node_rate} Hz')
 
+        # TODO publish odometry
+
+    def emergency_stop(self):
+        self._controller.emergency_stop()
+
     def _publish_cb(self):
         status = self._controller.get_status()
         self._publish_state(status)
         self._publish_joints(status)
+        self._publish_odometry(status)
+        self._publish_power(status)
 
     def _publish_state(self, status: dict):
         msg = String()
@@ -87,6 +104,64 @@ class HexapodControllerNode(Node):
         ]
 
         self._joints_pub.publish(msg)
+
+    def _publish_odometry(self, status: dict):
+        odom = status['odometry']
+
+        x = odom['x'] / 1000.0  # mm -> m
+        y = odom['y'] / 1000.0
+        z = status['body_position'][2] / 1000.0
+
+        roll = status['body_orientation'][0]
+        pitch = status['body_orientation'][1]
+        yaw = odom['yaw'] + status['body_orientation'][2]  # world yaw + small body yaw offset
+
+        q = quaternion_from_euler(roll, pitch, yaw)
+        stamp = self.get_clock().now().to_msg()
+
+        # TF: odom -> base_link
+        tf_msg = TransformStamped()
+        tf_msg.header.stamp = stamp
+        tf_msg.header.frame_id = 'odom'
+        tf_msg.child_frame_id = 'base_link'
+        tf_msg.transform.translation.x = x
+        tf_msg.transform.translation.y = y
+        tf_msg.transform.translation.z = z
+        tf_msg.transform.rotation.x = q[0]
+        tf_msg.transform.rotation.y = q[1]
+        tf_msg.transform.rotation.z = q[2]
+        tf_msg.transform.rotation.w = q[3]
+        self._tf_broadcaster.sendTransform(tf_msg)
+
+        # nav_msgs/Odometry
+        odom_msg = Odometry()
+        odom_msg.header.stamp = stamp
+        odom_msg.header.frame_id = 'odom'
+        odom_msg.child_frame_id = 'base_link'
+        odom_msg.pose.pose.position.x = x
+        odom_msg.pose.pose.position.y = y
+        odom_msg.pose.pose.position.z = z
+        odom_msg.pose.pose.orientation.x = q[0]
+        odom_msg.pose.pose.orientation.y = q[1]
+        odom_msg.pose.pose.orientation.z = q[2]
+        odom_msg.pose.pose.orientation.w = q[3]
+
+        vx = status['linear_velocity'][0] / 1000.0  # mm/s -> m/s
+        vy = status['linear_velocity'][1] / 1000.0
+        odom_msg.twist.twist.linear.x = vx
+        odom_msg.twist.twist.linear.y = vy
+        odom_msg.twist.twist.angular.z = math.radians(status['angular_velocity'])
+
+        self._odom_pub.publish(odom_msg)
+
+    def _publish_power(self, status: dict):
+        voltage_msg = Float32()
+        voltage_msg.data = float(status['battery_voltage'])
+        self._voltage_pub.publish(voltage_msg)
+
+        current_msg = Float32()
+        current_msg.data = float(status['current_draw'])
+        self._current_pub.publish(current_msg)
 
     def _timer_cb(self):
 
@@ -116,7 +191,7 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        node.emergency_stop()
     finally:
         node.destroy_node()
         rclpy.shutdown()
