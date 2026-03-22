@@ -9,9 +9,9 @@ import tf2_ros
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import TransformStamped
 from std_msgs.msg import String, Header, Float32
 from tf_transformations import quaternion_from_euler
+from geometry_msgs.msg import TransformStamped, Twist
 
 import controller
 from controller import HexapodController, HexapodKernel, HexapodInterface
@@ -55,6 +55,9 @@ class HexapodControllerNode(Node):
 
         self._tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
+        # Subscribers
+        self.create_subscription(Twist, '/hexapod/cmd_vel', self._cmd_vel_cb, 10)
+
         # Create timer for control loop
         controller_rate = config['control']['update_rate']
         self._controller_dt = 1.0 / controller_rate
@@ -70,8 +73,6 @@ class HexapodControllerNode(Node):
         self.get_logger().info(f'ROS distro        : {ros_distro}')
         self.get_logger().info(f'Controller rate   : {controller_rate:.0f} Hz')
         self.get_logger().info(f'Node rate         : {node_rate} Hz')
-
-        # TODO publish odometry
 
     def emergency_stop(self):
         self._controller.emergency_stop()
@@ -162,6 +163,10 @@ class HexapodControllerNode(Node):
         current_msg = Float32()
         current_msg.data = float(status['current_draw'])
         self._current_pub.publish(current_msg)
+
+    def _cmd_vel_cb(self, msg: Twist):
+        self._controller.set_linear_velocity(msg.linear.x, msg.linear.y, msg.linear.z)
+        self._controller.set_angular_velocity(msg.angular.z)
 
     def _timer_cb(self):
 
