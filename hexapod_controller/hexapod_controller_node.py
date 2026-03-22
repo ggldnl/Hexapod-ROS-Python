@@ -10,8 +10,8 @@ from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Header, Float32
-from tf_transformations import quaternion_from_euler
 from geometry_msgs.msg import TransformStamped, Twist
+from tf_transformations import quaternion_from_euler, quaternion_multiply
 
 import controller
 from controller import HexapodController, HexapodKernel, HexapodInterface
@@ -110,14 +110,23 @@ class HexapodControllerNode(Node):
         odom = status['odometry']
 
         x = odom['x'] / 1000.0  # mm -> m
-        y = odom['y'] / 1000.0
+        y = -odom['y'] / 1000.0
         z = status['body_position'][2] / 1000.0
 
         roll = status['body_orientation'][0]
         pitch = status['body_orientation'][1]
         yaw = odom['yaw'] + status['body_orientation'][2]  # world yaw + small body yaw offset
 
-        q = quaternion_from_euler(roll, pitch, yaw)
+        q_odom = quaternion_from_euler(roll, pitch, yaw)
+
+        # Corrective rotation: -90 deg around z to align URDF base frame with ROS convention
+        # This is due to a discrepancy between the convention used by the Fusion 360 extension I used to generate the
+        # URDF and the RVIZ convention
+        q_correction = quaternion_from_euler(0.0, 0.0, -math.pi / 2)
+
+        # Compose: apply correction first, then odometry rotation
+        q = quaternion_multiply(q_odom, q_correction)
+
         stamp = self.get_clock().now().to_msg()
 
         # TF: odom -> base
