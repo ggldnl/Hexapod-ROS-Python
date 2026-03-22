@@ -119,11 +119,11 @@ class HexapodControllerNode(Node):
         q = quaternion_from_euler(roll, pitch, yaw)
         stamp = self.get_clock().now().to_msg()
 
-        # TF: odom -> base_link
+        # TF: odom -> base
         tf_msg = TransformStamped()
         tf_msg.header.stamp = stamp
         tf_msg.header.frame_id = 'odom'
-        tf_msg.child_frame_id = 'base_link'
+        tf_msg.child_frame_id = 'base'
         tf_msg.transform.translation.x = x
         tf_msg.transform.translation.y = y
         tf_msg.transform.translation.z = z
@@ -137,7 +137,7 @@ class HexapodControllerNode(Node):
         odom_msg = Odometry()
         odom_msg.header.stamp = stamp
         odom_msg.header.frame_id = 'odom'
-        odom_msg.child_frame_id = 'base_link'
+        odom_msg.child_frame_id = 'base'
         odom_msg.pose.pose.position.x = x
         odom_msg.pose.pose.position.y = y
         odom_msg.pose.pose.position.z = z
