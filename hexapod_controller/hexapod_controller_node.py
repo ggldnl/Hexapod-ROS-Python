@@ -129,15 +129,7 @@ class HexapodControllerNode(Node):
         pitch = math.radians(pitch)
         yaw = math.radians(yaw)
 
-        q_odom = quaternion_from_euler(roll, pitch, yaw)
-
-        # Corrective rotation: -90 deg around z to align URDF base frame with ROS convention
-        # This is due to a discrepancy between the convention used by the Fusion 360 extension I used to generate the
-        # URDF and the RVIZ convention
-        q_correction = quaternion_from_euler(0.0, 0.0, -math.pi / 2)
-
-        # Compose: apply correction first, then odometry rotation
-        q = quaternion_multiply(q_odom, q_correction)
+        q = quaternion_from_euler(roll, pitch, yaw - math.pi / 2)
 
         stamp = self.get_clock().now().to_msg()
 
