@@ -240,19 +240,11 @@ class HexapodControllerNode(Node):
         q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         roll, pitch, yaw = euler_from_quaternion(q)
 
-        ctrl_yaw = yaw + math.pi / 2   # URDF frame -> controller frame
-
-        self.get_logger().info(
-            f'cmd_pose ctrl frame: x={ctrl_x:.1f} mm  y={ctrl_y:.1f} mm  z={z:.1f} mm  '
-            f'roll={math.degrees(roll):.1f}deg  pitch={math.degrees(pitch):.1f}deg  '
-            f'yaw={math.degrees(ctrl_yaw):.1f}deg'
-        )
-
         self._controller.set_body_position(ctrl_x, ctrl_y, z)
         self._controller.set_body_orientation(
             math.degrees(roll),
             math.degrees(pitch),
-            math.degrees(ctrl_yaw),
+            math.degrees(yaw),
         )
 
     def _timer_cb(self):
