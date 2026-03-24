@@ -182,21 +182,26 @@ class HexapodControllerNode(Node):
         self._controller.set_angular_velocity(msg.angular.z)
 
     def _cmd_pose_cb(self, msg: Pose):
-        x = msg.position.x * 1000.0  # m -> mm
-        y = msg.position.y * 1000.0
+        ros_x = msg.position.x * 1000.0  # m -> mm
+        ros_y = msg.position.y * 1000.0
         z = msg.position.z * 1000.0
+
+        # Rotate 90 deg around z
+        x_ctrl = ros_y
+        y_ctrl = -ros_x
 
         q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         roll, pitch, yaw = euler_from_quaternion(q)
 
-        roll = math.degrees(roll)  # rad -> deg
-        pitch = math.degrees(pitch)
-        yaw = math.degrees(yaw)
+        # Apply same rotation to yaw
+        yaw_ctrl = yaw + math.pi / 2
 
-        self.get_logger().info(f'{x}, {y}, {z}, {roll}, {pitch}, {yaw}')
-
-        self._controller.set_body_position(x, y, z)
-        self._controller.set_body_orientation(roll, pitch, yaw)
+        self._controller.set_body_position(x_ctrl, y_ctrl, z)
+        self._controller.set_body_orientation(
+            math.degrees(roll),
+            math.degrees(pitch),
+            math.degrees(yaw_ctrl)
+        )
 
     def _timer_cb(self):
 
