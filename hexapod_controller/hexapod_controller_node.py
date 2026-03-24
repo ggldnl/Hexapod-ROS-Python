@@ -98,18 +98,26 @@ class HexapodControllerNode(Node):
         msg = JointState()
         msg.header = Header()
         msg.header.stamp = self.get_clock().now().to_msg()
-        # msg.name = self._joint_names
-        msg.name = ['leg_1_coxa', 'leg_1_femur', 'leg_1_tibia']
-        msg.position = [
-            angle
-            # for leg in self._leg_names
-            for leg in ['front_right']
-            for i, angle in enumerate([
-                -math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[0]),  # coxa inverted
-                math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[1]),  # femur unchanged
-                math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[2]),  # tibia unchanged
+        msg.name = []
+        msg.position = []
+
+        # Frame rotation offset: controller +x = URDF +y means rotate +pi/2 around Z
+        frame_rotation_offset = math.pi / 2
+
+        for leg in self._leg_names:
+            angles_deg = joint_values.get(leg, [0.0, 0.0, 0.0])
+
+            # Apply frame rotation to coxa (rotation around vertical Z axis)
+            coxa_rad = math.radians(angles_deg[0]) + frame_rotation_offset
+            femur_rad = -math.radians(angles_deg[1])
+            tibia_rad = -math.radians(angles_deg[2])
+
+            msg.name.extend([
+                f'{leg}_coxa',
+                f'{leg}_femur',
+                f'{leg}_tibia',
             ])
-        ]
+            msg.position.extend([coxa_rad, femur_rad, tibia_rad])
 
         self._joints_pub.publish(msg)
 
