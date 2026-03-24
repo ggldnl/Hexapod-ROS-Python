@@ -167,6 +167,8 @@ class HexapodControllerNode(Node):
         odom_msg.twist.twist.linear.y = vy
         odom_msg.twist.twist.angular.z = math.radians(status['angular_velocity'])
 
+        self.get_logger().info(f'Current dead-reckoning x: {x}m')
+
         self._odom_pub.publish(odom_msg)
 
     def _publish_power(self, status: dict):
@@ -190,7 +192,9 @@ class HexapodControllerNode(Node):
         q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         roll, pitch, yaw = euler_from_quaternion(q)
 
-        self.get_logger().info(f'Received: {x}, {y}, {z}, {roll}, {pitch}, {yaw}')
+        roll = math.degrees(roll)  # rad -> deg
+        pitch = math.degrees(pitch)
+        yaw = math.degrees(yaw)
 
         self._controller.set_body_position(x, y, z)
         self._controller.set_body_orientation(roll, pitch, yaw)
