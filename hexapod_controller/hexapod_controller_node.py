@@ -106,9 +106,9 @@ class HexapodControllerNode(Node):
             angle
             for leg in self._leg_names
             for i, angle in enumerate([
-                self._controller.interface.kinematic_space_to_servo_space(joint_values.get(leg, [0.0, 0.0, 0.0])[0], leg, 0),  # coxa inverted
-                self._controller.interface.kinematic_space_to_servo_space(joint_values.get(leg, [0.0, 0.0, 0.0])[1], leg, 1),  # femur unchanged
-                self._controller.interface.kinematic_space_to_servo_space(joint_values.get(leg, [0.0, 0.0, 0.0])[2], leg, 2),  # tibia unchanged
+                self._controller.interface.kinematic_space_to_servo_space(leg, 0, joint_values.get(leg, [0.0, 0.0, 0.0])[0]),  # coxa inverted
+                self._controller.interface.kinematic_space_to_servo_space(leg, 1, joint_values.get(leg, [0.0, 0.0, 0.0])[1]),  # femur unchanged
+                self._controller.interface.kinematic_space_to_servo_space(leg, 2, joint_values.get(leg, [0.0, 0.0, 0.0])[2]),  # tibia unchanged
             ])
         ]
 
