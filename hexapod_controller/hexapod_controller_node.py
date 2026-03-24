@@ -10,8 +10,8 @@ from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Header, Float32
-from geometry_msgs.msg import TransformStamped, Twist
-from tf_transformations import quaternion_from_euler, quaternion_multiply
+from geometry_msgs.msg import TransformStamped, Twist, Pose
+from tf_transformations import quaternion_from_euler, quaternion_multiply, euler_from_quaternion
 
 import controller
 from controller import HexapodController, HexapodKernel, HexapodInterface
@@ -57,6 +57,7 @@ class HexapodControllerNode(Node):
 
         # Subscribers
         self.create_subscription(Twist, '/hexapod/cmd_vel', self._cmd_vel_cb, 10)
+        self.create_subscription(Pose, '/hexapod/cmd_pose', self._cmd_pose_cb, 10)
 
         # Create timer for control loop
         controller_rate = config['control']['update_rate']
@@ -180,6 +181,17 @@ class HexapodControllerNode(Node):
     def _cmd_vel_cb(self, msg: Twist):
         self._controller.set_linear_velocity(msg.linear.x, msg.linear.y, msg.linear.z)
         self._controller.set_angular_velocity(msg.angular.z)
+
+    def _cmd_pose_cb(self, msg: Pose):
+        x = msg.position.x * 1000.0  # m -> mm
+        y = msg.position.y * 1000.0
+        z = msg.position.z * 1000.0
+
+        q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
+        roll, pitch, yaw = euler_from_quaternion(q)
+
+        self._controller.set_body_position(x, y, z)
+        self._controller.set_body_orientation(roll, pitch, yaw)
 
     def _timer_cb(self):
 
