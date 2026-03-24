@@ -229,18 +229,15 @@ class HexapodControllerNode(Node):
         (degrees) before being forwarded.
         """
         # Convert position: metres -> mm, then rotate URDF -> controller frame.
-        urdf_x = msg.position.x * 1000.0   # m -> mm
-        urdf_y = msg.position.y * 1000.0
+        x = msg.position.x * 1000.0   # m -> mm
+        y = msg.position.y * 1000.0
         z = msg.position.z * 1000.0   # z axis is shared between both frames
-
-        ctrl_x = urdf_y    # URDF +y  ->  controller +x (forward)
-        ctrl_y = -urdf_x    # URDF +x  ->  controller −y (left)
 
         # Convert orientation: quaternion -> Euler, then rotate yaw.
         q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         roll, pitch, yaw = euler_from_quaternion(q)
 
-        self._controller.set_body_position(ctrl_x, ctrl_y, z)
+        self._controller.set_body_position(x, y, z)
         self._controller.set_body_orientation(
             math.degrees(roll),
             math.degrees(pitch),
