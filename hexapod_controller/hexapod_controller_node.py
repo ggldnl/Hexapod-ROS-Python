@@ -123,13 +123,13 @@ class HexapodControllerNode(Node):
 
         roll = status['body_orientation'][0]
         pitch = status['body_orientation'][1]
-        yaw = odom['yaw'] + math.radians(status['body_orientation'][2])  # world yaw + small body yaw offset
+        yaw = odom['yaw'] + status['body_orientation'][2]  # world yaw + small body yaw offset
 
         roll = math.radians(roll)
         pitch = math.radians(pitch)
         yaw = math.radians(yaw)
 
-        q = quaternion_from_euler(roll, pitch, yaw - math.pi / 2)
+        q = quaternion_from_euler(roll, pitch, yaw + math.pi / 2)
 
         stamp = self.get_clock().now().to_msg()
 
