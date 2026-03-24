@@ -95,9 +95,6 @@ class HexapodControllerNode(Node):
         if not joint_values:
             return
 
-        first_leg = 'front_right'
-        self.get_logger().info(f"Received: {joint_values.get(first_leg)}")
-
         msg = JointState()
         msg.header = Header()
         msg.header.stamp = self.get_clock().now().to_msg()
