@@ -101,7 +101,8 @@ class HexapodControllerNode(Node):
         msg.name = self._joint_names
         msg.position = [
             angle
-            for leg in self._leg_names
+            # for leg in self._leg_names
+            for leg in ['front_right']
             for i, angle in enumerate([
                 -math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[0]),  # coxa inverted
                 math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[1]),  # femur unchanged
@@ -236,8 +237,6 @@ class HexapodControllerNode(Node):
         # Convert orientation: quaternion -> Euler, then rotate yaw.
         q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         roll, pitch, yaw = euler_from_quaternion(q)
-
-        self.get_logger().info(f"Setting: {x}, {y}, {z}, {roll}, {pitch}, {yaw}")
 
         self._controller.set_body_position(x, y, z)
         self._controller.set_body_orientation(
