@@ -98,7 +98,8 @@ class HexapodControllerNode(Node):
         msg = JointState()
         msg.header = Header()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = self._joint_names
+        # msg.name = self._joint_names
+        msg.name = ['leg_1_coxa', 'leg_1_femur', 'leg_1_tibia']
         msg.position = [
             angle
             # for leg in self._leg_names
