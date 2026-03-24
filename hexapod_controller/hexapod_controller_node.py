@@ -122,6 +122,10 @@ class HexapodControllerNode(Node):
         pitch = status['body_orientation'][1]
         yaw = odom['yaw'] + status['body_orientation'][2]  # world yaw + small body yaw offset
 
+        roll = math.radians(roll)
+        pitch = math.radians(pitch)
+        yaw = math.radians(yaw)
+
         q_odom = quaternion_from_euler(roll, pitch, yaw)
 
         # Corrective rotation: -90 deg around z to align URDF base frame with ROS convention
@@ -167,8 +171,6 @@ class HexapodControllerNode(Node):
         odom_msg.twist.twist.linear.y = vy
         odom_msg.twist.twist.angular.z = math.radians(status['angular_velocity'])
 
-        self.get_logger().info(f'Current dead-reckoning x: {x}m')
-
         self._odom_pub.publish(odom_msg)
 
     def _publish_power(self, status: dict):
@@ -195,6 +197,8 @@ class HexapodControllerNode(Node):
         roll = math.degrees(roll)  # rad -> deg
         pitch = math.degrees(pitch)
         yaw = math.degrees(yaw)
+
+        self.get_logger().info(f'{x}, {y}, {z}, {roll}, {pitch}, {yaw}')
 
         self._controller.set_body_position(x, y, z)
         self._controller.set_body_orientation(roll, pitch, yaw)
