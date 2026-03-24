@@ -44,7 +44,7 @@ class HexapodControllerNode(Node):
         # Create the controller
         kernel = HexapodKernel(port=serial_port, baud=serial_baud)
         interface = HexapodInterface(kernel, config)
-        self._controller = HexapodController(interface, config)
+        self._controller = HexapodController(interface, config, verbose=False)  # we will add logging here
 
         # Publishers
         self._state_pub = self.create_publisher(String, '/hexapod/state', 10)
@@ -189,6 +189,8 @@ class HexapodControllerNode(Node):
 
         q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         roll, pitch, yaw = euler_from_quaternion(q)
+
+        self.get_logger().info(f'Received: {x}, {y}, {z}, {roll}, {pitch}, {yaw}')
 
         self._controller.set_body_position(x, y, z)
         self._controller.set_body_orientation(roll, pitch, yaw)
