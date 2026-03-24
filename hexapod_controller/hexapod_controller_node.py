@@ -112,21 +112,43 @@ class HexapodControllerNode(Node):
         self._joints_pub.publish(msg)
 
     def _publish_odometry(self, status: dict):
+        """
+        Build and publish the odom -> base TF and nav_msgs/Odometry message.
+
+        Frame convention
+        ----------------
+        The controller works in its own body frame where the robot's forward
+        direction is +x.  The URDF/RViz world has the robot facing +y, so the
+        controller frame is rotated +90deg (pi/2) around z relative to the URDF
+        frame. Concretely:
+
+            controller +x  =  URDF +y   (forward)
+            controller +y  =  URDF −x   (right)
+
+        To express the controller's heading in the URDF/world frame we apply a
+        −pi/2 yaw offset when composing the quaternion:
+
+            urdf_yaw = controller_yaw − pi/2
+        """
         odom = status['odometry']
 
+        # body_position is the effective total (sequencer + user offset), in mm.
         x = status['body_position'][0] / 1000.0 + odom['x'] / 1000.0  # mm -> m
         y = status['body_position'][1] / 1000.0 + odom['y'] / 1000.0
         z = status['body_position'][2] / 1000.0
 
-        roll = status['body_orientation'][0]
-        pitch = status['body_orientation'][1]
-        yaw = odom['yaw'] + status['body_orientation'][2]  # world yaw + small body yaw offset
+        # body_orientation is in degrees (see get_status); convert to radians.
+        roll  = math.radians(status['body_orientation'][0])
+        pitch = math.radians(status['body_orientation'][1])
 
-        roll = math.radians(roll)
-        pitch = math.radians(pitch)
-        yaw = math.radians(yaw)
+        # odom['yaw'] is already in radians; body_orientation[2] is in degrees.
+        # Combine first, then apply the −pi/2 URDF frame offset.
+        # Do NOT call math.radians() again on the combined value — it is already
+        # in radians at this point.
+        yaw = odom['yaw'] + math.radians(status['body_orientation'][2])
+        yaw_urdf = yaw - math.pi / 2   # controller frame -> URDF/world frame
 
-        q = quaternion_from_euler(roll, pitch, yaw + math.pi / 2)
+        q = quaternion_from_euler(roll, pitch, yaw_urdf)
 
         stamp = self.get_clock().now().to_msg()
 
@@ -179,25 +201,58 @@ class HexapodControllerNode(Node):
         self._controller.set_angular_velocity(msg.angular.z)
 
     def _cmd_pose_cb(self, msg: Pose):
-        ros_x = msg.position.x * 1000.0  # m -> mm
-        ros_y = msg.position.y * 1000.0
-        z = msg.position.z * 1000.0
+        """
+        Receive a body-pose command in the URDF/ROS frame and forward it to
+        the controller in the controller's body frame.
 
-        # Rotate 90 deg around z
-        x_ctrl = ros_y
-        y_ctrl = -ros_x
+        Frame rotation (URDF -> controller)
+        ------------------------------------
+        The URDF frame is rotated +pi/2 around z relative to the controller
+        frame (controller +x = URDF +y, controller +y = URDF −x).  To convert
+        an incoming URDF-frame vector to the controller frame we apply a −pi/2
+        rotation around z:
 
+            ctrl_x =  urdf_y
+            ctrl_y = −urdf_x
+
+        For yaw the same rotation applies:
+
+            ctrl_yaw = urdf_yaw + pi/2
+
+        This is the inverse of the −pi/2 offset applied in
+        _publish_odometry when broadcasting TF.
+
+        Units
+        -----
+        The ROS Pose message uses metres; the controller expects millimetres.
+        Orientation arrives as a quaternion and is converted to Euler angles
+        (degrees) before being forwarded.
+        """
+        # Convert position: metres -> mm, then rotate URDF -> controller frame.
+        urdf_x = msg.position.x * 1000.0   # m -> mm
+        urdf_y = msg.position.y * 1000.0
+        z = msg.position.z * 1000.0   # z axis is shared between both frames
+
+        ctrl_x = urdf_y    # URDF +y  ->  controller +x (forward)
+        ctrl_y = -urdf_x    # URDF +x  ->  controller −y (left)
+
+        # Convert orientation: quaternion -> Euler, then rotate yaw.
         q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
         roll, pitch, yaw = euler_from_quaternion(q)
 
-        # Apply same rotation to yaw
-        yaw_ctrl = yaw + math.pi / 2
+        ctrl_yaw = yaw + math.pi / 2   # URDF frame -> controller frame
 
-        self._controller.set_body_position(x_ctrl, y_ctrl, z)
+        self.get_logger().info(
+            f'cmd_pose ctrl frame: x={ctrl_x:.1f} mm  y={ctrl_y:.1f} mm  z={z:.1f} mm  '
+            f'roll={math.degrees(roll):.1f}deg  pitch={math.degrees(pitch):.1f}deg  '
+            f'yaw={math.degrees(ctrl_yaw):.1f}deg'
+        )
+
+        self._controller.set_body_position(ctrl_x, ctrl_y, z)
         self._controller.set_body_orientation(
             math.degrees(roll),
             math.degrees(pitch),
-            math.degrees(yaw_ctrl)
+            math.degrees(ctrl_yaw),
         )
 
     def _timer_cb(self):
