@@ -117,13 +117,13 @@ class HexapodControllerNode(Node):
     def _publish_odometry(self, status: dict):
         odom = status['odometry']
 
-        x = odom['x'] / 1000.0  # mm -> m
-        y = -odom['y'] / 1000.0
+        x = status['body_position'][0] / 1000.0 + odom['x'] / 1000.0  # mm -> m
+        y = status['body_position'][1] / 1000.0 + odom['y'] / 1000.0
         z = status['body_position'][2] / 1000.0
 
         roll = status['body_orientation'][0]
         pitch = status['body_orientation'][1]
-        yaw = odom['yaw'] + status['body_orientation'][2]  # world yaw + small body yaw offset
+        yaw = odom['yaw'] + math.radians(status['body_orientation'][2])  # world yaw + small body yaw offset
 
         roll = math.radians(roll)
         pitch = math.radians(pitch)
