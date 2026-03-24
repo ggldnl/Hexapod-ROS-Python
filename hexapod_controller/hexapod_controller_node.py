@@ -99,15 +99,23 @@ class HexapodControllerNode(Node):
         msg.header = Header()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.name = self._joint_names
-        msg.position = [
+
+        # Collect the angles in a format that is suitable to JointState messages and then
+        # translate them from kinematic space (controller) to servo space (same as urdf)
+        positions = [
             angle
             for leg in self._leg_names
             for i, angle in enumerate([
-                - math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[0]),  # coxa inverted
-                math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[1]),  # femur unchanged
-                math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[2]),  # tibia unchanged
+                self._controller.interface.kinematic_space_to_servo_space(joint_values.get(leg, [0.0, 0.0, 0.0])[0], leg, 0),  # coxa inverted
+                self._controller.interface.kinematic_space_to_servo_space(joint_values.get(leg, [0.0, 0.0, 0.0])[1], leg, 1),  # femur unchanged
+                self._controller.interface.kinematic_space_to_servo_space(joint_values.get(leg, [0.0, 0.0, 0.0])[2], leg, 2),  # tibia unchanged
             ])
         ]
+
+        # Degrees to radians
+        positions = [math.radians(angle) for angle in positions]
+
+        msg.position = positions
 
         self._joints_pub.publish(msg)
 
