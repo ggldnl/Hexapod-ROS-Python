@@ -142,7 +142,7 @@ class HexapodControllerNode(Node):
 
         # body_position is the effective total (sequencer + user offset), in mm.
         x = status['body_position'][0] / 1000.0 + odom['x'] / 1000.0  # mm -> m
-        y = status['body_position'][1] / 1000.0 + odom['y'] / 1000.0
+        y = - (status['body_position'][1] / 1000.0 + odom['y'] / 1000.0)
         z = status['body_position'][2] / 1000.0
 
         # body_orientation is in degrees (see get_status); convert to radians.
