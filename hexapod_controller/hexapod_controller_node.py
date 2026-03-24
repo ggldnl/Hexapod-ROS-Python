@@ -103,9 +103,9 @@ class HexapodControllerNode(Node):
             angle
             for leg in self._leg_names
             for i, angle in enumerate([
-                math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[0]) + math.pi / 2,  # coxa inverted
+                math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[0]),  # coxa inverted
                 - math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[1]),  # femur unchanged
-                - math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[2]),  # tibia unchanged
+                math.radians(joint_values.get(leg, [0.0, 0.0, 0.0])[2]),  # tibia unchanged
             ])
         ]
 
