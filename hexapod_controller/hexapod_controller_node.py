@@ -60,7 +60,7 @@ class HexapodControllerNode(Node):
         self.create_subscription(Pose, '/hexapod/cmd_pose', self._cmd_pose_cb, 10)
 
         # Create timer for control loop
-        controller_rate = config['control']['update_rate']
+        controller_rate = config['rate']['controller_update_rate']
         self._controller_dt = 1.0 / controller_rate
         self._last_frame = time.perf_counter()
         self.create_timer(self._controller_dt, self._timer_cb)
