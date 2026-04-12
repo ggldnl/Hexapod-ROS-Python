@@ -21,7 +21,7 @@ which was specifically designed to target Ubuntu 24.04 as its primary platform.
 ### Install dependencies
 
 ```bash
-sudo apt install ros-jazzy-tf-transformations
+sudo apt install ros-<your-distro>-tf-transformations
 ```
 
 ### Clone the repo
@@ -31,22 +31,16 @@ A ROS best practice is to put any packages in the workspace into the `src` direc
 
 ```bash
 cd ~/ros_ws/src  # use your actual ROS workspace
-git clone --recurse-submodules https://github.com/ggldnl/Hexapod-ROS-Python.git
+git clone https://github.com/ggldnl/Hexapod-ROS-Python.git
 ```
 
 ### Create an environment
 
-Building this node will require the [python controller](https://github.com/ggldnl/Hexapod-Controller.git), which is managed 
-as a git submodule and automatically downloaded.
-When `colcon build` installs the node it only knows about the package, 
-any external code from a submodule won't automatically be on the python path 
-at runtime unless we explicitly make it available.
-
-To account for this, we will need to install the controller as a python package
-on system python (the one ROS2 was built against).
+Building this node will require the [python controller](https://github.com/ggldnl/Hexapod-Controller.git) to be installed as a python package.
+When `colcon build` installs the node it only knows about packaged code installed for system python:
 
 ```bash
-pip install --break-system-packages ~/ros_ws/src/Hexapod-ROS-Python/Hexapod-Controller
+pip install --break-system-packages git+https://github.com/ggldnl/Hexapod-Controller.git
 ```
 
 ### Build the package 

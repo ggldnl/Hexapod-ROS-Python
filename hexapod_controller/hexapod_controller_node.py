@@ -2,7 +2,6 @@ import os
 import time
 import yaml
 import math
-from importlib import resources
 
 import rclpy
 import tf2_ros
@@ -11,6 +10,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Header, Float32
 from geometry_msgs.msg import TransformStamped, Twist, Pose
+from ament_index_python.packages import get_package_share_directory
 from tf_transformations import quaternion_from_euler, quaternion_multiply, euler_from_quaternion
 
 import controller
@@ -23,15 +23,12 @@ class HexapodControllerNode(Node):
         super().__init__('hexapod_controller_node')
 
         # Use default config inside Hexapod-Controller. We can always specify a new config file as parameter
-        default_config_path = resources.files('controller') / 'config' / 'config.yml'
+        package_share = get_package_share_directory('hexapod_controller')
+        default_config_path = os.path.join(package_share, 'config', 'config.yml')
         self.declare_parameter('config_path', str(default_config_path))
-        self.declare_parameter('serial_port', '/dev/ttyAMA0')
-        self.declare_parameter('serial_baud', 115200)
         self.declare_parameter('node_rate', 20.0)  # Hz - ROS2 node publishing rate
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
-        serial_port = self.get_parameter('serial_port').get_parameter_value().string_value
-        serial_baud = self.get_parameter('serial_baud').get_parameter_value().integer_value
         node_rate = self.get_parameter('node_rate').get_parameter_value().double_value
 
         # Load config
@@ -42,9 +39,11 @@ class HexapodControllerNode(Node):
         self._joint_names = [f'leg_{i+1}_{joint}' for i, leg in enumerate(self._leg_names) for joint in ['coxa', 'femur', 'tibia']]
 
         # Create the controller
+        serial_port = config['serial'].get('port', '/dev/ttyAMA0')
+        serial_baud = config['serial'].get('port', 115200)
         kernel = HexapodKernel(port=serial_port, baud=serial_baud)
         interface = HexapodInterface(kernel, config)
-        self._controller = HexapodController(interface, config, verbose=False)  # we will add logging here
+        self._controller = HexapodController(interface, config, verbose=False)
 
         # Publishers
         self._state_pub = self.create_publisher(String, '/hexapod/state', 10)

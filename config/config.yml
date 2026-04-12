@@ -1,0 +1,144 @@
+# Hexapod Robot Configuration
+
+# Geometric parameters
+kinematics:
+
+  body:
+
+    position: [0.0, 0.0, 0.0]
+    orientation: [0.0, 0.0, 0.0]
+
+    # length: 165  # mm
+    # width: 114   # mm
+    # height: 14   # mm
+    ground_to_center_z: 35.6  # 26.60 + 2 + 14/2 mm
+
+  legs:
+
+    coxa: 62     # mm
+    femur: 77    # mm
+    tibia: 100   # mm
+
+    # Leg mounting position and orientation relative to body center
+
+    front_right:
+      position: [82.0, -57.0, 0.0]
+      orientation: [0.0, 0.0, -45]
+
+    middle_right:
+      position: [0.0, -71.0, 0.0]
+      orientation: [0.0, 0.0, -90]
+
+    rear_right:
+      position: [-82.0, -57.0, 0.0]
+      orientation: [0.0, 0.0, -135]
+
+    rear_left:
+      position: [-82.0, 57.0, 0.0]
+      orientation: [0.0, 0.0, 135]
+
+    middle_left:
+      position: [0.0, 71.0, 0.0]
+      orientation: [0.0, 0.0, 90]
+
+    front_left:
+      position: [82.0, 57.0, 0.0]
+      orientation: [0.0, 0.0, 45]
+
+# Hardware parameters
+hardware:
+
+  # Servo pin assignments: [coxa, femur, tibia]
+  pins:
+    front_right:  [0, 1, 2]
+    middle_right: [3, 4, 5]
+    rear_right:   [6, 7, 8]
+    rear_left:    [9, 10, 11]
+    middle_left:  [12, 13, 14]
+    front_left:   [15, 16, 17]
+
+  # Servo calibration offsets in degrees
+  trim:
+    front_right:  [0, 0, -163]
+    middle_right: [0, 0, -163]
+    rear_right:   [0, 0, -163]
+    rear_left:    [0, 0, -163]
+    middle_left:  [0, 0, -163]
+    front_left:   [0, 0, -163]
+
+  # Servo direction multipliers (1 or -1)
+  direction:
+    front_right:  [-1, 1, -1]
+    middle_right: [-1, 1, -1]
+    rear_right:   [-1, 1, -1]
+    rear_left:    [-1, 1, -1]
+    middle_left:  [-1, 1, -1]
+    front_left:   [-1, 1, -1]
+
+# Gait parameters
+gaits:
+
+  cycle_time: 1.0         # s
+  stance_radius: 155.0    # mm
+  standing_height: 80.0   # mm
+
+  # duty_factor represents the fraction of a gait cycle a foot remains on the ground
+
+  tripod:
+    duty_factor: 0.5
+    step_height: 60.0   # mm
+    stride_length: 80.0 # mm
+    overlap: 0.0
+
+  wave:
+    duty_factor: 0.8333  # a slow, cautious gait can have higher duty factor
+    step_height: 60.0   # mm
+    stride_length: 80.0 # mm
+    overlap: 0.0
+
+  ripple:
+    duty_factor: 0.67
+    step_height: 60.0   # mm
+    stride_length: 80.0 # mm
+    overlap: 0.0
+
+# Serial
+serial:
+
+  port: '/dev/ttyAMA0'
+  baud: 115200
+
+# Rate parameters
+rate:
+
+  led_update_rate: 2          # Hz
+  controller_update_rate: 40  # Hz
+
+# Safety limits
+safety:
+
+  voltage_min: 5.0    # V
+  current_max: 12.0   # A
+
+  lin_vel_max: 250              # mm/s
+  ang_vel_max: 60               # deg/s
+  velocity_smoothing_tau: 0.1   # s
+
+  body_lin_vel_max: 50  # mm/s
+  body_ang_vel_max: 30  # deg/s
+
+  joint_vel_max: 200  # deg/s
+
+  # Expressed in joint space
+  coxa_range: [-90, 90]
+  femur_range: [-90, 90]
+  tibia_range: [-120, 0]  # leave a small clearance for the tibia minimum, as the servo might stall
+
+  # Body position and orientation delta range
+  x_range: [-50, 50]
+  y_range: [-50, 50]
+  z_range: [0, 100]
+
+  roll_range: [-10, 10]
+  pitch_range: [-10, 10]
+  yaw_range: [-10, 10]
