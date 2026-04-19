@@ -26,7 +26,7 @@ class HexapodControllerNode(Node):
         package_share = get_package_share_directory('hexapod_controller')
         default_config_path = os.path.join(package_share, 'config', 'config.yml')
         self.declare_parameter('config_path', str(default_config_path))
-        self.declare_parameter('node_rate', 20.0)  # Hz - ROS2 node publishing rate
+        self.declare_parameter('node_rate', 20)  # Hz - ROS2 node publishing rate
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         node_rate = self.get_parameter('node_rate').get_parameter_value().double_value
@@ -226,12 +226,12 @@ class HexapodControllerNode(Node):
         velocity defined in the config file.
         """
         self._controller.set_linear_velocity(
-            round(msg.linear.x * self.lin_vel_max, 2),
-            round(msg.linear.y * self.lin_vel_max, 2),
-            round(msg.linear.z * self.lin_vel_max, 2)
+            round(msg.linear.x * self.lin_vel_max, 1),
+            round(msg.linear.y * self.lin_vel_max, 1),
+            round(msg.linear.z * self.lin_vel_max, 1)
         )
         self._controller.set_angular_velocity(
-            round(msg.angular.z * self.ang_vel_max, 2)
+            round(msg.angular.z * self.ang_vel_max, 1)
         )
 
     def _cmd_pose_cb(self, msg: Pose):
