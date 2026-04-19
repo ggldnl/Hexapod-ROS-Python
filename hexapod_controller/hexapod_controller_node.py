@@ -40,7 +40,7 @@ class HexapodControllerNode(Node):
 
         # Create the controller
         serial_port = config['serial'].get('port', '/dev/ttyAMA0')
-        serial_baud = config['serial'].get('port', 115200)
+        serial_baud = config['serial'].get('baud', 115200)
         kernel = HexapodKernel(port=serial_port, baud=serial_baud)
         interface = HexapodInterface(kernel, config)
         self._controller = HexapodController(interface, config, verbose=False)

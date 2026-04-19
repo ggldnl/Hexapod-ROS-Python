@@ -34,7 +34,7 @@ cd ~/ros_ws/src  # use your actual ROS workspace
 git clone https://github.com/ggldnl/Hexapod-ROS-Python.git
 ```
 
-### Create an environment
+### Install the controller
 
 Building this node will require the [python controller](https://github.com/ggldnl/Hexapod-Controller.git) to be installed as a python package.
 When `colcon build` installs the node it only knows about packaged code installed for system python:
