@@ -38,6 +38,12 @@ class HexapodControllerNode(Node):
         self._leg_names = [k for k, v in config['kinematics']['legs'].items() if isinstance(v, dict)]
         self._joint_names = [f'leg_{i+1}_{joint}' for i, leg in enumerate(self._leg_names) for joint in ['coxa', 'femur', 'tibia']]
 
+        # Velocities
+        self.lin_vel_max = config['safety'].get('lin_vel_max', 250)
+        self.ang_vel_max = config['safety'].get('ang_vel_max', 60)
+        self.body_lin_vel_max = config['safety'].get('body_lin_vel_max', 50)
+        self.body_ang_vel_max = config['safety'].get('body_ang_vel_max', 30)
+
         # Create the controller
         serial_port = config['serial'].get('port', '/dev/ttyAMA0')
         serial_baud = config['serial'].get('baud', 115200)
@@ -57,6 +63,7 @@ class HexapodControllerNode(Node):
         # Subscribers
         self.create_subscription(Twist, '/hexapod/cmd_vel', self._cmd_vel_cb, 10)
         self.create_subscription(Pose, '/hexapod/cmd_pose', self._cmd_pose_cb, 10)
+        self.create_subscription(Twist, '/hexapod/cmd_vel_norm', self._cmd_vel_cb_norm, 10)
 
         # Create timer for control loop
         controller_rate = config['rate']['controller_update_rate']
@@ -71,7 +78,7 @@ class HexapodControllerNode(Node):
         self.get_logger().info('HexapodControllerNode started')
         self.get_logger().info(f'Controller version: {controller.__version__}')
         self.get_logger().info(f'ROS distro        : {ros_distro}')
-        self.get_logger().info(f'Controller rate   : {controller_rate:.0f} Hz')
+        self.get_logger().info(f'Controller rate   : {controller_rate} Hz')
         self.get_logger().info(f'Node rate         : {node_rate} Hz')
 
     def emergency_stop(self):
@@ -204,8 +211,28 @@ class HexapodControllerNode(Node):
         self._current_pub.publish(current_msg)
 
     def _cmd_vel_cb(self, msg: Twist):
-        self._controller.set_linear_velocity(msg.linear.x, msg.linear.y, msg.linear.z)
-        self._controller.set_angular_velocity(msg.angular.z)
+        self._controller.set_linear_velocity(
+            int(msg.linear.x),
+            int(msg.linear.y),
+            int(msg.linear.z)
+        )
+        self._controller.set_angular_velocity(
+            int(msg.angular.z)
+        )
+
+    def _cmd_vel_cb_norm(self, msg: Twist):
+        """
+        Receive a normalized linear velocity that will be scaled by the maximum
+        velocity defined in the config file.
+        """
+        self._controller.set_linear_velocity(
+            round(msg.linear.x * self.lin_vel_max, 2),
+            round(msg.linear.y * self.lin_vel_max, 2),
+            round(msg.linear.z * self.lin_vel_max, 2)
+        )
+        self._controller.set_angular_velocity(
+            round(msg.angular.z * self.ang_vel_max, 2)
+        )
 
     def _cmd_pose_cb(self, msg: Pose):
         """

@@ -63,7 +63,7 @@ In a second terminal, listen to the topic:
 
 ```bash
 source ~/ros_ws/install/setup.bash
-ros2 topic echo /robot_state
+ros2 topic echo /hexapod/state
 ```
 
 You should see the status of the robot (e.g. `IDLE`) printed every second on the terminal.
