@@ -26,7 +26,7 @@ class HexapodControllerNode(Node):
         package_share = get_package_share_directory('hexapod_controller')
         default_config_path = os.path.join(package_share, 'config', 'config.yml')
         self.declare_parameter('config_path', str(default_config_path))
-        self.declare_parameter('node_rate', 20.0)  # Hz - ROS2 node publishing rate
+        self.declare_parameter('node_rate', 20)  # Hz - ROS2 node publishing rate
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         node_rate = self.get_parameter('node_rate').get_parameter_value().double_value
