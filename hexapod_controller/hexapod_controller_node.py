@@ -1,5 +1,4 @@
 import os
-import time
 import yaml
 import math
 
@@ -63,12 +62,14 @@ class HexapodControllerNode(Node):
         # Subscribers
         self.create_subscription(Twist, '/hexapod/cmd_vel', self._cmd_vel_cb, 10)
         self.create_subscription(Pose, '/hexapod/cmd_pose', self._cmd_pose_cb, 10)
-        self.create_subscription(Twist, '/hexapod/cmd_vel_norm', self._cmd_vel_cb_norm, 10)
+        self.create_subscription(Twist, '/hexapod/cmd_vel_norm', self._cmd_vel_norm_cb, 10)
+        self.create_subscription(Float32, '/hexapod/cmd_height', self._cmd_height_cb, 10)
+        self.create_subscription(Float32, '/hexapod/cmd_pitch', self._cmd_pitch_cb, 10)
 
         # Create timer for control loop
         controller_rate = config['rate']['controller_update_rate']
         self._controller_dt = 1.0 / controller_rate
-        self._last_frame = time.perf_counter()
+        self._last_ros_time = self.get_clock().now()
         self.create_timer(self._controller_dt, self._timer_cb)
 
         self._node_dt = 1.0 / node_rate
@@ -220,7 +221,7 @@ class HexapodControllerNode(Node):
             int(msg.angular.z)
         )
 
-    def _cmd_vel_cb_norm(self, msg: Twist):
+    def _cmd_vel_norm_cb(self, msg: Twist):
         """
         Receive a normalized linear velocity that will be scaled by the maximum
         velocity defined in the config file.
@@ -278,11 +279,23 @@ class HexapodControllerNode(Node):
             math.degrees(yaw),
         )
 
+    def _cmd_height_cb(self, msg: Float32):
+        """
+        Receive absolute height offset in mm.
+        """
+        self._controller.set_body_position(0, 0, msg.data)
+
+    def _cmd_pitch_cb(self, msg: Float32):
+        """
+        Receive pitch offset in degrees.
+        """
+        self._controller.set_body_orientation(0, msg.data, 0)
+
     def _timer_cb(self):
 
-        now = time.perf_counter()
-        dt = now - self._last_frame
-        self._last_frame = now
+        now = self.get_clock().now()
+        dt = (now - self._last_ros_time).nanoseconds / 1e9
+        self._last_ros_time = now
 
         ok = self._controller.update(dt)
 
@@ -290,7 +303,7 @@ class HexapodControllerNode(Node):
             self.get_logger().warn('Controller update failed', throttle_duration_sec=1.0)
 
         # Warn if over budget
-        elapsed = time.perf_counter() - now
+        elapsed = (self.get_clock().now() - now).nanoseconds / 1e9
         if elapsed > self._controller_dt:
             self.get_logger().warn(
                 f'Frame over budget: {elapsed * 1000:.1f}ms > {self._controller_dt * 1000:.1f}ms',
