@@ -225,7 +225,6 @@ class HexapodControllerNode(Node):
         Receive a normalized linear velocity that will be scaled by the maximum
         velocity defined in the config file.
         """
-        print(round(msg.linear.x, 1) * self.lin_vel_max, round(msg.linear.y, 1) * self.lin_vel_max, round(msg.linear.z, 1) * self.lin_vel_max, round(msg.angular.z, 1) * self.ang_vel_max)
         self._controller.set_linear_velocity(
             round(msg.linear.x, 1) * self.lin_vel_max,
             round(msg.linear.y, 1) * self.lin_vel_max,
