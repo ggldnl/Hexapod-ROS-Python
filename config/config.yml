@@ -137,7 +137,7 @@ safety:
   # Body position and orientation delta range
   x_range: [-50, 50]
   y_range: [-50, 50]
-  z_range: [0, 100]
+  z_range: [20, -20]
 
   roll_range: [-10, 10]
   pitch_range: [-10, 10]
