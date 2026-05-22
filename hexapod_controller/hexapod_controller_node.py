@@ -227,12 +227,12 @@ class HexapodControllerNode(Node):
         velocity defined in the config file.
         """
         self._controller.set_linear_velocity(
-            round(msg.linear.x, 1) * self.lin_vel_max,
-            round(msg.linear.y, 1) * self.lin_vel_max,
-            round(msg.linear.z, 1) * self.lin_vel_max
+            round(msg.linear.x, 2) * self.lin_vel_max,
+            round(msg.linear.y, 2) * self.lin_vel_max,
+            round(msg.linear.z, 2) * self.lin_vel_max
         )
         self._controller.set_angular_velocity(
-            round(msg.angular.z, 1) * self.ang_vel_max,
+            round(msg.angular.z, 2) * self.ang_vel_max,
         )
 
     def _cmd_pose_cb(self, msg: Pose):
