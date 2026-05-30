@@ -5,6 +5,7 @@ import math
 import rclpy
 import tf2_ros
 from rclpy.node import Node
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Header, Float32
@@ -66,14 +67,20 @@ class HexapodControllerNode(Node):
         self.create_subscription(Float32, '/hexapod/cmd_height', self._cmd_height_cb, 10)
         self.create_subscription(Float32, '/hexapod/cmd_pitch', self._cmd_pitch_cb, 10)
 
+        # Each timer gets its own callback group so they can run concurrently
+        # under MultiThreadedExecutor and neither blocks the other.
+        self._control_cb_group = MutuallyExclusiveCallbackGroup()
+        self._publish_cb_group = MutuallyExclusiveCallbackGroup()
+
         # Create timer for control loop
         controller_rate = config['rate']['controller_update_rate']
         self._controller_dt = 1.0 / controller_rate
-        self._last_ros_time = self.get_clock().now()
-        self.create_timer(self._controller_dt, self._timer_cb)
+        self.create_timer(self._controller_dt, self._timer_cb,
+                          callback_group=self._control_cb_group)
 
         self._node_dt = 1.0 / node_rate
-        self.create_timer(self._node_dt, self._publish_cb)
+        self.create_timer(self._node_dt, self._publish_cb,
+                          callback_group=self._publish_cb_group)
 
         ros_distro = os.environ.get("ROS_DISTRO")
         self.get_logger().info('HexapodControllerNode started')
@@ -213,12 +220,12 @@ class HexapodControllerNode(Node):
 
     def _cmd_vel_cb(self, msg: Twist):
         self._controller.set_linear_velocity(
-            int(msg.linear.x),
-            int(msg.linear.y),
-            int(msg.linear.z)
+            msg.linear.x,
+            msg.linear.y,
+            msg.linear.z
         )
         self._controller.set_angular_velocity(
-            int(msg.angular.z)
+            msg.angular.z
         )
 
     def _cmd_vel_norm_cb(self, msg: Twist):
@@ -292,12 +299,11 @@ class HexapodControllerNode(Node):
         self._controller.set_body_orientation(0, msg.data, 0)
 
     def _timer_cb(self):
-
+        # Use the nominal fixed period, not the measured elapsed time.
+        # Measured dt is subject to ROS2 executor jitter (competing callbacks,
+        # OS scheduling, GIL) which causes irregular gait phase advancement.
         now = self.get_clock().now()
-        dt = (now - self._last_ros_time).nanoseconds / 1e9
-        self._last_ros_time = now
-
-        ok = self._controller.update(dt)
+        ok = self._controller.update(self._controller_dt)
 
         if not ok:
             self.get_logger().warn('Controller update failed', throttle_duration_sec=1.0)
@@ -315,11 +321,14 @@ def main(args=None):
 
     rclpy.init(args=args)
     node = HexapodControllerNode()
+    executor = rclpy.executors.MultiThreadedExecutor()
+    executor.add_node(node)
 
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         node.emergency_stop()
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()

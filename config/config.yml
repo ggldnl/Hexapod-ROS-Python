@@ -79,8 +79,13 @@ hardware:
 gaits:
 
   cycle_time: 1.0         # s
-  stance_radius: 155.0    # mm
+  stance_radius: 155.0    # mm  (leg extension from mount — used for neutral stance geometry only)
   standing_height: 80.0   # mm
+
+  # Upper bound on gait phase rate. Prevents swing phases from becoming too short
+  # to execute cleanly. max_phase_rate = (1 - duty_factor) / min_swing_duration.
+  # At 2.0 Hz with duty_factor=0.5: min swing = 0.25 s (~10 ticks at 40 Hz).
+  max_phase_rate: 2.0     # Hz
 
   # duty_factor represents the fraction of a gait cycle a foot remains on the ground
 
