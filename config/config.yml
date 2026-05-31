@@ -85,7 +85,7 @@ gaits:
   # Upper bound on gait phase rate. Prevents swing phases from becoming too short
   # to execute cleanly. max_phase_rate = (1 - duty_factor) / min_swing_duration.
   # At 2.0 Hz with duty_factor=0.5: min swing = 0.25 s (~10 ticks at 40 Hz).
-  max_phase_rate: 2.0     # Hz
+  max_phase_rate: 1.0     # Hz
 
   # duty_factor represents the fraction of a gait cycle a foot remains on the ground
 
@@ -126,7 +126,7 @@ safety:
   current_max: 12.0   # A
 
   lin_vel_max: 250              # mm/s
-  ang_vel_max: 60               # deg/s
+  ang_vel_max: 30               # deg/s
   velocity_smoothing_tau: 0.05  # s
 
   body_lin_vel_max: 50  # mm/s
