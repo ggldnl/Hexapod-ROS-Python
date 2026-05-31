@@ -17,6 +17,56 @@ import controller
 from controller import HexapodController, HexapodKernel, HexapodInterface
 
 
+class FakeKernel:
+    """Drop-in replacement for HexapodKernel that needs no UART hardware.
+
+    Tracks commanded servo angles internally so reads reflect the last write,
+    making the controller's IK feedback loop behave correctly without servos.
+    """
+
+    def __init__(self):
+        self._servo_angles = {}  # pin -> float (degrees)
+
+    def close(self):
+        pass
+
+    def connect_power(self) -> bool:
+        return True
+
+    def disconnect_power(self) -> bool:
+        return True
+
+    def get_voltage(self) -> float:
+        return 12.0
+
+    def get_current(self) -> float:
+        return 0.0
+
+    def attach_servos(self) -> bool:
+        return True
+
+    def detach_servos(self) -> bool:
+        return True
+
+    def set_servo_angle(self, pin: int, angle: float) -> bool:
+        self._servo_angles[pin] = float(angle)
+        return True
+
+    def set_servo_angles(self, values) -> bool:
+        for pin, angle in values:
+            self._servo_angles[pin] = float(angle)
+        return True
+
+    def get_servo_angle(self, pin: int) -> float:
+        return self._servo_angles.get(pin, 0.0)
+
+    def get_servo_angles(self, pins) -> list:
+        return [self._servo_angles.get(pin, 0.0) for pin in pins]
+
+    def set_led(self, pin: int, r: int, g: int, b: int) -> bool:
+        return True
+
+
 class HexapodControllerNode(Node):
 
     def __init__(self):
@@ -27,9 +77,11 @@ class HexapodControllerNode(Node):
         default_config_path = os.path.join(package_share, 'config', 'config.yml')
         self.declare_parameter('config_path', str(default_config_path))
         self.declare_parameter('node_rate', 20)  # Hz - ROS2 node publishing rate
+        self.declare_parameter('fake_hardware', False)
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         node_rate = self.get_parameter('node_rate').get_parameter_value().integer_value
+        fake_hardware = self.get_parameter('fake_hardware').get_parameter_value().bool_value
 
         # Load config
         with open(config_path, 'r') as f:
@@ -45,9 +97,12 @@ class HexapodControllerNode(Node):
         self.body_ang_vel_max = config['safety'].get('body_ang_vel_max', 30)
 
         # Create the controller
-        serial_port = config['serial'].get('port', '/dev/ttyAMA0')
-        serial_baud = config['serial'].get('baud', 115200)
-        kernel = HexapodKernel(port=serial_port, baud=serial_baud)
+        if fake_hardware:
+            kernel = FakeKernel()
+        else:
+            serial_port = config['serial'].get('port', '/dev/ttyAMA0')
+            serial_baud = config['serial'].get('baud', 115200)
+            kernel = HexapodKernel(port=serial_port, baud=serial_baud)
         interface = HexapodInterface(kernel, config)
         self._controller = HexapodController(interface, config, verbose=False)
 
@@ -88,6 +143,8 @@ class HexapodControllerNode(Node):
         self.get_logger().info(f'ROS distro        : {ros_distro}')
         self.get_logger().info(f'Controller rate   : {controller_rate} Hz')
         self.get_logger().info(f'Node rate         : {node_rate} Hz')
+        if fake_hardware:
+            self.get_logger().warning('fake_hardware=True — no UART, servo commands are silently discarded')
 
     def emergency_stop(self):
         self._controller.emergency_stop()
