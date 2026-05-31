@@ -77,12 +77,12 @@ class HexapodControllerNode(Node):
         default_config_path = os.path.join(package_share, 'config', 'config.yml')
         self.declare_parameter('config_path', str(default_config_path))
         self.declare_parameter('node_rate', 20)  # Hz - ROS2 node publishing rate
-        self.declare_parameter('power_telemetry_rate', 2.0)  # Hz - battery/current polling
+        self.declare_parameter('power_telemetry_rate', 2)  # Hz - battery/current polling
         self.declare_parameter('fake_hardware', False)
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         node_rate = self.get_parameter('node_rate').get_parameter_value().integer_value
-        power_rate = self.get_parameter('power_telemetry_rate').get_parameter_value().double_value
+        power_rate = self.get_parameter('power_telemetry_rate').get_parameter_value().integer_value
         fake_hardware = self.get_parameter('fake_hardware').get_parameter_value().bool_value
 
         # Load config
@@ -293,6 +293,16 @@ class HexapodControllerNode(Node):
         odom_msg.pose.pose.orientation.z = q[2]
         odom_msg.pose.pose.orientation.w = q[3]
 
+        # NOTE: odometry over-reports during capped combined maneuvers.
+        # These velocities (and the integrated pose above) come from the
+        # controller's commanded velocity. When a combined linear+angular
+        # command exceeds the gait's max_phase_rate, the gait clamps phase_rate
+        # (so the robot physically moves slower) but the controller still
+        # integrates the full commanded velocity. The published twist/pose
+        # therefore over-estimate the true motion by effective_speed/max while
+        # the cap is active. Only an issue for aggressive combined turns; for
+        # exact dead-reckoning the gait would need to report its achieved
+        # (post-clamp) velocity back to the odometry integrator.
         vx = status['linear_velocity'][0] / 1000.0  # mm/s -> m/s
         vy = status['linear_velocity'][1] / 1000.0
         odom_msg.twist.twist.linear.x = vx
@@ -321,6 +331,10 @@ class HexapodControllerNode(Node):
         # rviz/nav2/standard teleop) while the controller keeps its interpretable
         # internal units. The normalized topic (/hexapod/cmd_vel_norm) needs no
         # conversion — it carries unitless [-1, 1] values scaled by config maxima.
+        #
+        # No phase-rate limiting here: the gait generator caps phase_rate
+        # (max_phase_rate) so combined linear+angular commands don't drive
+        # the swing too short for the servos.
         self._controller.set_linear_velocity(
             msg.linear.x * 1000.0,   # m/s -> mm/s
             msg.linear.y * 1000.0,
