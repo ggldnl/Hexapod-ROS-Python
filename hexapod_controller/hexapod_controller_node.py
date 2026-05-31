@@ -77,10 +77,12 @@ class HexapodControllerNode(Node):
         default_config_path = os.path.join(package_share, 'config', 'config.yml')
         self.declare_parameter('config_path', str(default_config_path))
         self.declare_parameter('node_rate', 20)  # Hz - ROS2 node publishing rate
+        self.declare_parameter('power_telemetry_rate', 2.0)  # Hz - battery/current polling
         self.declare_parameter('fake_hardware', False)
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         node_rate = self.get_parameter('node_rate').get_parameter_value().integer_value
+        power_rate = self.get_parameter('power_telemetry_rate').get_parameter_value().double_value
         fake_hardware = self.get_parameter('fake_hardware').get_parameter_value().bool_value
 
         # Load config
@@ -122,20 +124,28 @@ class HexapodControllerNode(Node):
         self.create_subscription(Float32, '/hexapod/cmd_height', self._cmd_height_cb, 10)
         self.create_subscription(Float32, '/hexapod/cmd_pitch', self._cmd_pitch_cb, 10)
 
-        # Each timer gets its own callback group so they can run concurrently
-        # under MultiThreadedExecutor and neither blocks the other.
-        self._control_cb_group = MutuallyExclusiveCallbackGroup()
-        self._publish_cb_group = MutuallyExclusiveCallbackGroup()
-
-        # Create timer for control loop
+        # Create timer for control loop.
         controller_rate = config['rate']['controller_update_rate']
         self._controller_dt = 1.0 / controller_rate
-        self.create_timer(self._controller_dt, self._timer_cb,
-                          callback_group=self._control_cb_group)
+
+        # Upper bound on the dt fed to the gait. With a single-threaded executor
+        # a control tick can be delayed (e.g. while the publish callback does its
+        # serial telemetry reads); clamping prevents a delayed tick from injecting
+        # a phase lurch, while a near-zero dt from a catch-up firing simply adds no
+        # phase. This keeps gait pacing tied to real time without jerk.
+        self._max_controller_dt = 2.0 * self._controller_dt
+        self._last_ros_time = self.get_clock().now()
+        self.create_timer(self._controller_dt, self._timer_cb)
 
         self._node_dt = 1.0 / node_rate
-        self.create_timer(self._node_dt, self._publish_cb,
-                          callback_group=self._publish_cb_group)
+        self.create_timer(self._node_dt, self._publish_cb)
+
+        # Battery/current readings hit the serial link. Poll them on a slow timer
+        # rather than inside the high-rate publish path, so the frequent joint/odom
+        # publishing stays free of serial I/O and does not block the (single-
+        # threaded) control loop.
+        self._power_dt = 1.0 / power_rate
+        self.create_timer(self._power_dt, self._publish_power_cb)
 
         ros_distro = os.environ.get("ROS_DISTRO")
         self.get_logger().info('HexapodControllerNode started')
@@ -143,6 +153,7 @@ class HexapodControllerNode(Node):
         self.get_logger().info(f'ROS distro        : {ros_distro}')
         self.get_logger().info(f'Controller rate   : {controller_rate} Hz')
         self.get_logger().info(f'Node rate         : {node_rate} Hz')
+        self.get_logger().info(f'Power rate        : {power_rate} Hz')
         if fake_hardware:
             self.get_logger().warning('fake_hardware=True — no UART, servo commands are silently discarded')
 
@@ -150,11 +161,35 @@ class HexapodControllerNode(Node):
         self._controller.emergency_stop()
 
     def _publish_cb(self):
-        status = self._controller.get_status()
+        status = self._read_cheap_status()
         self._publish_state(status)
         self._publish_joints(status)
         self._publish_odometry(status)
-        self._publish_power(status)
+
+    def _read_cheap_status(self) -> dict:
+        """
+        Snapshot of controller state that needs NO serial I/O.
+
+        This mirrors the serial-free fields of HexapodController.get_status()
+        and deliberately omits battery_voltage / current_draw — the only fields
+        that poll the serial link. Those are published separately at a low rate
+        (see _publish_power_cb) so this high-rate path never blocks the control
+        loop on serial traffic.
+        """
+        c = self._controller
+        return {
+            'state': c.state.name,
+            'body_position': c.body_position.tolist(),
+            'body_orientation': [math.degrees(a) for a in c.body_orientation],
+            'linear_velocity': c.linear_velocity.tolist(),
+            'angular_velocity': c.angular_velocity,
+            'joint_values': {k: v.tolist() for k, v in c.current_joints.items()},
+            'odometry': {
+                'x': c.odom_x,
+                'y': c.odom_y,
+                'yaw': c.odom_yaw,
+            },
+        }
 
     def _publish_state(self, status: dict):
         msg = String()
@@ -266,23 +301,33 @@ class HexapodControllerNode(Node):
 
         self._odom_pub.publish(odom_msg)
 
-    def _publish_power(self, status: dict):
+    def _publish_power_cb(self):
+        # Slow timer: the voltage/current reads go over the serial link, so they
+        # run at power_telemetry_rate (a few Hz) rather than at node_rate. Calls
+        # the interface directly — single-threaded execution serializes this with
+        # the control loop's serial access, so frames never interleave.
         voltage_msg = Float32()
-        voltage_msg.data = float(status['battery_voltage'])
+        voltage_msg.data = float(self._controller.interface.get_voltage())
         self._voltage_pub.publish(voltage_msg)
 
         current_msg = Float32()
-        current_msg.data = float(status['current_draw'])
+        current_msg.data = float(self._controller.interface.get_current())
         self._current_pub.publish(current_msg)
 
     def _cmd_vel_cb(self, msg: Twist):
+        # geometry_msgs/Twist follows ROS SI conventions (linear in m/s, angular
+        # in rad/s), whereas the controller API works in mm/s and deg/s. Convert
+        # at this boundary so the topic stays standards-compliant (usable by
+        # rviz/nav2/standard teleop) while the controller keeps its interpretable
+        # internal units. The normalized topic (/hexapod/cmd_vel_norm) needs no
+        # conversion — it carries unitless [-1, 1] values scaled by config maxima.
         self._controller.set_linear_velocity(
-            msg.linear.x,
-            msg.linear.y,
-            msg.linear.z
+            msg.linear.x * 1000.0,   # m/s -> mm/s
+            msg.linear.y * 1000.0,
+            msg.linear.z * 1000.0,
         )
         self._controller.set_angular_velocity(
-            msg.angular.z
+            math.degrees(msg.angular.z),  # rad/s -> deg/s
         )
 
     def _cmd_vel_norm_cb(self, msg: Twist):
@@ -356,11 +401,24 @@ class HexapodControllerNode(Node):
         self._controller.set_body_orientation(0, msg.data, 0)
 
     def _timer_cb(self):
-        # Use the nominal fixed period, not the measured elapsed time.
-        # Measured dt is subject to ROS2 executor jitter (competing callbacks,
-        # OS scheduling, GIL) which causes irregular gait phase advancement.
+        # Advance the gait by the real elapsed wall-clock time, exactly like the
+        # standalone controller loop (main.py passes its measured actual_dt).
+        #
+        # Feeding a constant nominal period here is wrong: when the timer falls
+        # behind and the executor fires it back-to-back to catch up, each firing
+        # would advance the gait phase by a full period of stride despite almost
+        # no real time having passed. That produces bursts of fast, tiny steps
+        # followed by stalls (jerky, "in-place" motion) and decouples gait cadence
+        # from real time, so the robot covers less ground/rotation than commanded.
+        #
+        # The dt is clamped (see _max_controller_dt) so a single delayed tick
+        # cannot lurch the gait, and a ~0 dt catch-up firing simply adds no phase.
         now = self.get_clock().now()
-        ok = self._controller.update(self._controller_dt)
+        dt = (now - self._last_ros_time).nanoseconds / 1e9
+        self._last_ros_time = now
+        dt = min(max(dt, 0.0), self._max_controller_dt)
+
+        ok = self._controller.update(dt)
 
         if not ok:
             self.get_logger().warn('Controller update failed', throttle_duration_sec=1.0)
@@ -378,14 +436,12 @@ def main(args=None):
 
     rclpy.init(args=args)
     node = HexapodControllerNode()
-    executor = rclpy.executors.MultiThreadedExecutor()
-    executor.add_node(node)
 
     try:
-        executor.spin()
+        rclpy.spin(node)
     except KeyboardInterrupt:
         node.emergency_stop()
     finally:
-        executor.shutdown()
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
