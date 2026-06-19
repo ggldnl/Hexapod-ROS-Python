@@ -78,40 +78,40 @@ hardware:
 # Gait parameters
 gaits:
 
-  cycle_time: 1.0         # s
+  # Cadence: one full gait cycle every cycle_time seconds (constant by design).
+  # Top linear speed of a gait = max_stride / (duty_factor * cycle_time).
+  cycle_time: 0.8         # s  (1.25 Hz cadence)
   stance_radius: 155.0    # mm  (leg extension from mount — used for neutral stance geometry only)
   standing_height: 80.0   # mm
 
-  # Upper bound on gait phase rate. Prevents swing phases from becoming too short
-  # to execute cleanly. max_phase_rate = (1 - duty_factor) / min_swing_duration.
-  # At 2.0 Hz with duty_factor=0.5: min swing = 0.25 s (~10 ticks at 40 Hz).
-  max_phase_rate: 1.0     # Hz
-
-  # duty_factor represents the fraction of a gait cycle a foot remains on the ground
+  # duty_factor: fraction of a gait cycle a foot remains on the ground.
+  # max_stride:  maximum step size (mm). Steps grow with commanded speed up to this
+  #              reachable limit; beyond it the twist is scaled down (radius preserved).
+  #              Reachable in all directions up to ~125 mm (measured); keep margin.
 
   tripod:
     duty_factor: 0.5
-    step_height: 60.0   # mm
-    stride_length: 80.0 # mm
+    step_height: 60.0    # mm
+    max_stride: 120.0    # mm  -> top speed ~300 mm/s
     overlap: 0.0
 
   wave:
     duty_factor: 0.8333  # a slow, cautious gait can have higher duty factor
-    step_height: 60.0   # mm
-    stride_length: 80.0 # mm
+    step_height: 60.0    # mm
+    max_stride: 90.0     # mm  -> top speed ~135 mm/s
     overlap: 0.0
 
   ripple:
     duty_factor: 0.67
-    step_height: 60.0   # mm
-    stride_length: 80.0 # mm
+    step_height: 60.0    # mm
+    max_stride: 110.0    # mm  -> top speed ~205 mm/s
     overlap: 0.0
 
 # Serial
 serial:
 
   port: '/dev/ttyAMA0'
-  baud: 115200
+  baud: 921600   # must match BAUD_RATE in Hexapod-Firmware/src/config.hpp
 
 # Rate parameters
 rate:
@@ -125,8 +125,8 @@ safety:
   voltage_min: 5.0    # V
   current_max: 12.0   # A
 
-  lin_vel_max: 250              # mm/s
-  ang_vel_max: 30               # deg/s
+  lin_vel_max: 500              # mm/s  (within tripod top speed ~325 mm/s)
+  ang_vel_max: 90               # deg/s
   velocity_smoothing_tau: 0.05  # s
 
   body_lin_vel_max: 50  # mm/s
