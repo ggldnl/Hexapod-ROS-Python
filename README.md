@@ -37,10 +37,11 @@ git clone https://github.com/ggldnl/Hexapod-ROS-Python.git
 ### Install the controller
 
 Building this node will require the [python controller](https://github.com/ggldnl/Hexapod-Controller.git) to be installed as a python package.
-When `colcon build` installs the node it only knows about packaged code installed for system python:
+The node imports it to open the serial link and provision the board, so the framing and the wire protocol stay in one place.
+When `colcon build` installs the node it only knows about packaged code installed for system python. Install the controller with the `serial` extra so it pulls in pyserial for the real UART:
 
 ```bash
-pip install --break-system-packages git+https://github.com/ggldnl/Hexapod-Controller.git
+pip install --break-system-packages "hexapod-controller[serial] @ git+https://github.com/ggldnl/Hexapod-Controller.git"
 ```
 
 ### Build the package 
@@ -68,7 +69,13 @@ ros2 topic echo /hexapod/state
 
 You should see the status of the robot (e.g. `IDLE`) printed every second on the terminal.
 
-## 🚀 Delpoy
+## ⚙️ Configuration
+
+The node ships its own `config/config.yml` with the full robot description (kinematics, gaits, safety limits, hardware wiring and calibration, serial port).
+At launch the node loads it and provisions the Servo2040 with it before enabling the board, so editing this file and relaunching is all it takes to change the robot description.
+Point the node at a different file with the `config_path` parameter when you need to.
+
+## 🚀 Deploy
 
 Run the node:
 
@@ -79,7 +86,7 @@ ros2 run hexapod_controller hexapod_controller
 ROS2 parameters can be overridden at launch time without touching the code:
 
 ```bash
-ros2 run hexapod_controller hexapod_controller --ros-args -p port:=/dev/ttyAMA0 -p config_path:=/path/to/node/Hexapod-Controller/config/config.yml
+ros2 run hexapod_controller hexapod_controller --ros-args -p port:=/dev/ttyAMA0 -p config_path:=/path/to/config.yml
 ```
 
 ## 🤝 Contribution

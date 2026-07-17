@@ -1,26 +1,31 @@
-# Hexapod Robot Configuration
+# Hexapod robot configuration for the ROS2 node.
+#
+# The node loads this file at launch and provisions the Servo2040 with it, one
+# section per message, before enabling the board. Edit it here to change the
+# robot description without touching the code, then relaunch the node.
+# See the firmware config for details.
+#
+# Canonical leg order (must not be reordered): front_right, middle_right,
+# rear_right, rear_left, middle_left, front_left. Per leg, joints are always
+# [coxa, femur, tibia].
 
-# Geometric parameters
+# board sections (provisioned to the Servo2040)
+
 kinematics:
 
-  body:
-
-    position: [0.0, 0.0, 0.0]
-    orientation: [0.0, 0.0, 0.0]
-
-    # length: 165  # mm
-    # width: 114   # mm
-    # height: 14   # mm
-    ground_to_center_z: 35.6  # 26.60 + 2 + 14/2 mm
-
+  # Leg link lengths (mm), shared by all six legs
   legs:
+    coxa: 62
+    femur: 77
+    tibia: 100
 
-    coxa: 62     # mm
-    femur: 77    # mm
-    tibia: 100   # mm
+  standing_height: 80.0   # mm, body height when standing
+  stance_radius: 155.0    # mm, neutral foot distance from its mount
 
-    # Leg mounting position and orientation relative to body center
-
+  # Where each leg mounts on the body: position [x, y, z] mm and orientation
+  # [roll, pitch, yaw] deg, relative to the body centre. This robot is planar,
+  # so z and roll/pitch are 0 and the firmware uses only x, y and yaw
+  mounts:
     front_right:
       position: [82.0, -57.0, 0.0]
       orientation: [0.0, 0.0, -45]
@@ -45,10 +50,62 @@ kinematics:
       position: [82.0, 57.0, 0.0]
       orientation: [0.0, 0.0, 45]
 
-# Hardware parameters
+gaits:
+
+  # One full gait cycle every cycle_time seconds at any speed (constant cadence)
+  cycle_time: 0.8   # s
+
+  # duty_factor: fraction of the cycle a foot is on the ground
+  # max_stride:  reachable step ceiling (mm), speed grows the step up to here
+  tripod:
+    duty_factor: 0.5
+    step_height: 60.0    # mm
+    max_stride: 120.0    # mm, top speed around 300 mm/s
+    overlap: 0.0
+
+  wave:
+    duty_factor: 0.8333  # a slow, cautious gait can have a higher duty factor
+    step_height: 60.0    # mm
+    max_stride: 90.0     # mm, top speed around 135 mm/s
+    overlap: 0.0
+
+  ripple:
+    duty_factor: 0.67
+    step_height: 60.0    # mm
+    max_stride: 110.0    # mm, top speed around 205 mm/s
+    overlap: 0.0
+
+safety:
+
+  voltage_min: 5.0         # V, software low-voltage cutoff to FAULT
+  current_max: 12.0        # A, software over-current cutoff to FAULT
+
+  lin_vel_max: 300         # mm/s
+  ang_vel_max: 60          # deg/s
+  vel_smooth_tau: 0.05     # s, first-order velocity smoothing
+
+  body_lin_vel_max: 50     # mm/s, body-pose slew
+  body_ang_vel_max: 30     # deg/s, body-pose slew
+  joint_vel_max: 200       # deg/s, joint slew
+
+  # Servo-space joint limits (clamp), per joint type. The kinematic map's output
+  # (kin_deg * direction + trim) is clamped to these before it drives the servos
+  coxa_range: [-90, 90]
+  femur_range: [-90, 90]
+  tibia_range: [-120, 0]   # clearance at the tibia minimum, the servo may stall
+
+  # Body-pose command limits (offsets from standing), each an independent [min, max]
+  x_range: [-50, 50]       # mm
+  y_range: [-50, 50]       # mm
+  z_range: [-20, 20]       # mm, relative to standing height
+  roll_range: [-10, 10]    # deg
+  pitch_range: [-10, 10]   # deg
+  yaw_range: [-10, 10]     # deg
+
 hardware:
 
-  # Servo pin assignments: [coxa, femur, tibia]
+  # Physical wiring, applied in the HAL (not the kinematic model). Physical
+  # output driving each logical channel, per leg [coxa, femur, tibia]
   pins:
     front_right:  [0, 1, 2]
     middle_right: [3, 4, 5]
@@ -57,7 +114,9 @@ hardware:
     middle_left:  [12, 13, 14]
     front_left:   [15, 16, 17]
 
-  # Servo calibration offsets in degrees
+  # Servo calibration offsets in degrees, per leg [coxa, femur, tibia]. Structural
+  # (e.g. the tibia link is a triangle, so servo -163 deg is kinematic 0). With
+  # direction this is the servo-kinematic map, the clamp lives in safety.*_range
   trim:
     front_right:  [0, 0, -163]
     middle_right: [0, 0, -163]
@@ -66,7 +125,7 @@ hardware:
     middle_left:  [0, 0, -163]
     front_left:   [0, 0, -163]
 
-  # Servo direction multipliers (1 or -1)
+  # Servo direction multipliers (1 or -1), per leg [coxa, femur, tibia]
   direction:
     front_right:  [-1, 1, -1]
     middle_right: [-1, 1, -1]
@@ -75,75 +134,21 @@ hardware:
     middle_left:  [-1, 1, -1]
     front_left:   [-1, 1, -1]
 
-# Gait parameters
-gaits:
+  # Measured per-servo pulse widths at [-90, 0, +90] degrees (microseconds),
+  # written by the calibration tool. Independent of the joint's structural range
+  # (that lives in hardware.trim/direction and safety.*_range). The values here
+  # are placeholders until calibrated, per leg the order is [coxa, femur, tibia]
+  # and each triple is [pulse@-90, pulse@0, pulse@+90]
+  pulses:
+    front_right:  [[500, 1500, 2500], [500, 1500, 2500], [500, 1500, 2500]]
+    middle_right: [[500, 1500, 2500], [500, 1500, 2500], [500, 1500, 2500]]
+    rear_right:   [[500, 1500, 2500], [500, 1500, 2500], [500, 1500, 2500]]
+    rear_left:    [[500, 1500, 2500], [500, 1500, 2500], [500, 1500, 2500]]
+    middle_left:  [[500, 1500, 2500], [500, 1500, 2500], [500, 1500, 2500]]
+    front_left:   [[500, 1500, 2500], [500, 1500, 2500], [500, 1500, 2500]]
 
-  # Cadence: one full gait cycle every cycle_time seconds (constant by design).
-  # Top linear speed of a gait = max_stride / (duty_factor * cycle_time).
-  cycle_time: 0.8         # s  (1.25 Hz cadence)
-  stance_radius: 155.0    # mm  (leg extension from mount — used for neutral stance geometry only)
-  standing_height: 80.0   # mm
+# host-only (not provisioned): how the Pi opens the link
 
-  # duty_factor: fraction of a gait cycle a foot remains on the ground.
-  # max_stride:  maximum step size (mm). Steps grow with commanded speed up to this
-  #              reachable limit; beyond it the twist is scaled down (radius preserved).
-  #              Reachable in all directions up to ~125 mm (measured); keep margin.
-
-  tripod:
-    duty_factor: 0.5
-    step_height: 60.0    # mm
-    max_stride: 120.0    # mm  -> top speed ~300 mm/s
-    overlap: 0.0
-
-  wave:
-    duty_factor: 0.8333  # a slow, cautious gait can have higher duty factor
-    step_height: 60.0    # mm
-    max_stride: 90.0     # mm  -> top speed ~135 mm/s
-    overlap: 0.0
-
-  ripple:
-    duty_factor: 0.67
-    step_height: 60.0    # mm
-    max_stride: 110.0    # mm  -> top speed ~205 mm/s
-    overlap: 0.0
-
-# Serial
 serial:
-
-  port: '/dev/ttyAMA0'
-  baud: 921600   # must match BAUD_RATE in Hexapod-Firmware/src/config.hpp
-
-# Rate parameters
-rate:
-
-  led_update_rate: 2          # Hz
-  controller_update_rate: 40  # Hz
-
-# Safety limits
-safety:
-
-  voltage_min: 5.0    # V
-  current_max: 12.0   # A
-
-  lin_vel_max: 500              # mm/s  (within tripod top speed ~325 mm/s)
-  ang_vel_max: 90               # deg/s
-  velocity_smoothing_tau: 0.05  # s
-
-  body_lin_vel_max: 50  # mm/s
-  body_ang_vel_max: 30  # deg/s
-
-  joint_vel_max: 200  # deg/s
-
-  # Expressed in joint space
-  coxa_range: [-90, 90]
-  femur_range: [-90, 90]
-  tibia_range: [-120, 0]  # leave a small clearance for the tibia minimum, as the servo might stall
-
-  # Body position and orientation delta range
-  x_range: [-50, 50]
-  y_range: [-50, 50]
-  z_range: [-20, 20]
-
-  roll_range: [-10, 10]
-  pitch_range: [-10, 10]
-  yaw_range: [-10, 10]
+  port: /dev/ttyAMA0
+  baud: 921600   # must match BAUD in the firmware config

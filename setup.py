@@ -16,8 +16,7 @@ setup(
     ],
     install_requires=[
         'setuptools',
-        'hexapod',
-        'numpy',
+        'hexapod-controller',
         'pyserial',
         'pyyaml'
     ],
