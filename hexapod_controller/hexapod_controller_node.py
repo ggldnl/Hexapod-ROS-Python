@@ -7,7 +7,7 @@ import tf2_ros
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
-from std_msgs.msg import String, Header, Float32
+from std_msgs.msg import String, Header, Float32, Bool
 from geometry_msgs.msg import TransformStamped, Twist, Pose
 from ament_index_python.packages import get_package_share_directory
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
@@ -32,7 +32,7 @@ class HexapodControllerNode(Node):
         self.declare_parameter('send_rate', 20)        # Hz, setpoint and heartbeat to the board
         self.declare_parameter('telemetry_rate', 20)   # Hz, state, joints and odom from the board
         self.declare_parameter('power_rate', 2)        # Hz, voltage and current from the board
-        self.declare_parameter('enable_on_start', True)
+        self.declare_parameter('enable_on_start', False)
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         port = self.get_parameter('port').get_parameter_value().string_value
@@ -60,6 +60,8 @@ class HexapodControllerNode(Node):
         if enable_on_start:
             self._bot.enable()
             self.get_logger().info('Sent ENABLE, the board is running its startup sequence')
+        else:
+            self.get_logger().info('Robot in OFF state, send True on /hexapod/enable to stand up')
 
         # Desired setpoints and dirty flags (sent only when they change)
         self._lin = [0.0, 0.0]   # vx, vy mm/s
@@ -77,6 +79,7 @@ class HexapodControllerNode(Node):
         self._tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         # Subscribers
+        self.create_subscription(Bool, '/hexapod/enable', self._enable_cb, 10)
         self.create_subscription(Twist, '/hexapod/cmd_vel', self._cmd_vel_cb, 10)
         self.create_subscription(Twist, '/hexapod/cmd_vel_norm', self._cmd_vel_norm_cb, 10)
         self.create_subscription(Pose, '/hexapod/cmd_pose', self._cmd_pose_cb, 10)
@@ -173,6 +176,14 @@ class HexapodControllerNode(Node):
         self._odom_pub.publish(odom_msg)
 
     # Command callbacks (store the desired setpoint, the sender timer forwards it)
+
+    def _enable_cb(self, msg: Bool):
+        # True stands the robot up (enable), False sits it down (shutdown). The
+        # board ignores the request from a state where it does not apply
+        if msg.data:
+            self._bot.enable()
+        else:
+            self._bot.shutdown()
 
     def _cmd_vel_cb(self, msg: Twist):
         # geometry_msgs/Twist is SI (m/s, rad/s), the board API is mm/s and deg/s
