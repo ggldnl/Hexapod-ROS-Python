@@ -93,6 +93,13 @@ class HexapodControllerNode(Node):
 
         self.get_logger().info('HexapodControllerNode started')
 
+        ros_distro = os.environ.get("ROS_DISTRO")
+        # self.get_logger().info(f'Controller version: {hexapod.__version__}')
+        self.get_logger().info(f'ROS distro        : {ros_distro}')
+        self.get_logger().info(f'Heartbeat rate    : {send_rate} Hz')       # Hz, setpoint and heartbeat to the board
+        self.get_logger().info(f'Telemetry rate    : {telemetry_rate} Hz')  # Hz, state, joints and odom from the board
+        self.get_logger().info(f'Power rate        : {power_rate} Hz')      # Hz, voltage and current from the board
+
     # Setpoint sending (change-detected with heartbeat keepalive)
 
     def _send_cb(self):
