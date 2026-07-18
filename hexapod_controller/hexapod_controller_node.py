@@ -12,7 +12,10 @@ from geometry_msgs.msg import TransformStamped, Twist, Pose
 from ament_index_python.packages import get_package_share_directory
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
 
-from hexapod import connect
+from hexapod import connect, GaitId
+
+
+GAITS = {'tripod': GaitId.TRIPOD, 'wave': GaitId.WAVE, 'ripple': GaitId.RIPPLE}
 
 
 class HexapodControllerNode(Node):
@@ -30,11 +33,13 @@ class HexapodControllerNode(Node):
         self.declare_parameter('config_path', str(default_config_path))
         self.declare_parameter('port', '')             # overrides serial.port from the config when set
         self.declare_parameter('update_rate', 50)      # Hz, single serial loop (command write + telemetry read)
+        self.declare_parameter('reply_timeout', 0.05)  # s, per-query wait, a lost reply costs this much instead of stalling the loop
         self.declare_parameter('enable_on_start', False)
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         port = self.get_parameter('port').get_parameter_value().string_value
         update_rate = self.get_parameter('update_rate').get_parameter_value().integer_value
+        reply_timeout = self.get_parameter('reply_timeout').get_parameter_value().double_value
         enable_on_start = self.get_parameter('enable_on_start').get_parameter_value().bool_value
 
         with open(config_path, 'r') as f:
@@ -51,7 +56,7 @@ class HexapodControllerNode(Node):
 
         # Open the serial link and provision the board from the config
         self.get_logger().info('Connecting to the Servo2040 and provisioning...')
-        self._bot = connect(config=config, port=(port or None))
+        self._bot = connect(config=config, port=(port or None), timeout=reply_timeout)
         self.get_logger().info('Provisioning complete')
         if enable_on_start:
             self._bot.enable()
@@ -81,6 +86,7 @@ class HexapodControllerNode(Node):
         self.create_subscription(Pose, '/hexapod/cmd_pose', self._cmd_pose_cb, 10)
         self.create_subscription(Float32, '/hexapod/cmd_height', self._cmd_height_cb, 10)
         self.create_subscription(Float32, '/hexapod/cmd_pitch', self._cmd_pitch_cb, 10)
+        self.create_subscription(String, '/hexapod/cmd_gait', self._cmd_gait_cb, 10)
 
         # One serial loop: a single thread owns the port, writing the command or
         # heartbeat then reading telemetry in a fixed order, so the cadence stays
@@ -209,6 +215,13 @@ class HexapodControllerNode(Node):
     def _cmd_pitch_cb(self, msg: Float32):
         self._pose[4] = msg.data
         self._pose_dirty = True
+
+    def _cmd_gait_cb(self, msg: String):
+        gait = GAITS.get(msg.data.lower())
+        if gait is None:
+            self.get_logger().warn(f'unknown gait: {msg.data}')
+            return
+        self._bot.set_gait(gait)
 
     def shutdown(self):
         try:
