@@ -29,16 +29,12 @@ class HexapodControllerNode(Node):
         default_config_path = os.path.join(package_share, 'config', 'config.yml')
         self.declare_parameter('config_path', str(default_config_path))
         self.declare_parameter('port', '')             # overrides serial.port from the config when set
-        self.declare_parameter('send_rate', 20)        # Hz, setpoint and heartbeat to the board
-        self.declare_parameter('telemetry_rate', 20)   # Hz, state, joints and odom from the board
-        self.declare_parameter('power_rate', 2)        # Hz, voltage and current from the board
+        self.declare_parameter('update_rate', 50)      # Hz, single serial loop (command write + telemetry read)
         self.declare_parameter('enable_on_start', False)
 
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         port = self.get_parameter('port').get_parameter_value().string_value
-        send_rate = self.get_parameter('send_rate').get_parameter_value().integer_value
-        telemetry_rate = self.get_parameter('telemetry_rate').get_parameter_value().integer_value
-        power_rate = self.get_parameter('power_rate').get_parameter_value().integer_value
+        update_rate = self.get_parameter('update_rate').get_parameter_value().integer_value
         enable_on_start = self.get_parameter('enable_on_start').get_parameter_value().bool_value
 
         with open(config_path, 'r') as f:
@@ -86,23 +82,23 @@ class HexapodControllerNode(Node):
         self.create_subscription(Float32, '/hexapod/cmd_height', self._cmd_height_cb, 10)
         self.create_subscription(Float32, '/hexapod/cmd_pitch', self._cmd_pitch_cb, 10)
 
-        # Timers
-        self.create_timer(1.0 / max(send_rate, 1), self._send_cb)
-        self.create_timer(1.0 / max(telemetry_rate, 1), self._telemetry_cb)
-        self.create_timer(1.0 / max(power_rate, 1), self._power_cb)
+        # One serial loop: a single thread owns the port, writing the command or
+        # heartbeat then reading telemetry in a fixed order, so the cadence stays
+        # regular instead of three timers competing and bursting when the link is slow
+        self.create_timer(1.0 / max(update_rate, 1), self._update_cb)
 
         self.get_logger().info('HexapodControllerNode started')
 
         ros_distro = os.environ.get("ROS_DISTRO")
         # self.get_logger().info(f'Controller version: {hexapod.__version__}')
         self.get_logger().info(f'ROS distro        : {ros_distro}')
-        self.get_logger().info(f'Heartbeat rate    : {send_rate} Hz')       # Hz, setpoint and heartbeat to the board
-        self.get_logger().info(f'Telemetry rate    : {telemetry_rate} Hz')  # Hz, state, joints and odom from the board
-        self.get_logger().info(f'Power rate        : {power_rate} Hz')      # Hz, voltage and current from the board
+        self.get_logger().info(f'Update rate       : {update_rate} Hz')     # Hz, single serial loop (command + telemetry)
 
-    # Setpoint sending (change-detected with heartbeat keepalive)
+    # One serial loop: write the pending command or heartbeat, then read telemetry
 
-    def _send_cb(self):
+    def _update_cb(self):
+        # Command path first, so the board gets the freshest setpoint and the
+        # watchdog is pet even if the telemetry reads below fail
         try:
             if self._vel_dirty:
                 self._bot.set_velocity(self._lin[0], self._lin[1], self._wz)
@@ -115,9 +111,8 @@ class HexapodControllerNode(Node):
         except Exception as exc:
             self.get_logger().warn(f'send failed: {exc}', throttle_duration_sec=1.0)
 
-    # Telemetry
-
-    def _telemetry_cb(self):
+        # Telemetry path: two serial round-trips, then publish. get_telemetry
+        # already carries voltage and current, so there is no separate power query
         try:
             tel = self._bot.get_telemetry()
             joints = self._bot.get_joints()
@@ -128,16 +123,8 @@ class HexapodControllerNode(Node):
         self._state_pub.publish(String(data=tel.state.name))
         self._publish_joints(joints)
         self._publish_odometry(tel)
-
-    def _power_cb(self):
-        # Voltage and current on a slow timer, queried directly from the board
-        try:
-            voltage = self._bot.get_voltage()
-            current = self._bot.get_current()
-        except Exception:
-            return
-        self._voltage_pub.publish(Float32(data=float(voltage)))
-        self._current_pub.publish(Float32(data=float(current)))
+        self._voltage_pub.publish(Float32(data=float(tel.voltage)))
+        self._current_pub.publish(Float32(data=float(tel.current)))
 
     def _publish_joints(self, joints):
         # Joints are servo-space degrees, leg-major (coxa, femur, tibia), converted to radians for JointState
