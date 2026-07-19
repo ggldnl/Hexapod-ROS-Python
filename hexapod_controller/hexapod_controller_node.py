@@ -32,7 +32,7 @@ class HexapodControllerNode(Node):
         default_config_path = os.path.join(package_share, 'config', 'config.yml')
         self.declare_parameter('config_path', str(default_config_path))
         self.declare_parameter('port', '')             # overrides serial.port from the config when set
-        self.declare_parameter('update_rate', 50)      # Hz, single serial loop (command write + telemetry read)
+        self.declare_parameter('update_rate', 100)     # Hz, single serial loop (command write + telemetry read)
         self.declare_parameter('reply_timeout', 0.05)  # s, per-query wait, a lost reply costs this much instead of stalling the loop
         self.declare_parameter('enable_on_start', False)
 
@@ -118,19 +118,29 @@ class HexapodControllerNode(Node):
             self.get_logger().warn(f'send failed: {exc}', throttle_duration_sec=1.0)
 
         # Telemetry path: two serial round-trips, then publish. get_telemetry
-        # already carries voltage and current, so there is no separate power query
+        # already carries voltage and current, so there is no separate power query.
+        # The two queries are independent: a lost telemetry reply must not skip the
+        # joint read, or the sim drops a frame and the unread reply is left in the
+        # buffer for the next tick to pick up stale
+        tel = None
+        joints = None
         try:
             tel = self._bot.get_telemetry()
-            joints = self._bot.get_joints()
         except Exception as exc:
             self.get_logger().warn(f'telemetry failed: {exc}', throttle_duration_sec=1.0)
-            return
+        try:
+            joints = self._bot.get_joints()
+        except Exception as exc:
+            self.get_logger().warn(f'joint read failed: {exc}', throttle_duration_sec=1.0)
 
-        self._state_pub.publish(String(data=tel.state.name))
-        self._publish_joints(joints)
-        self._publish_odometry(tel)
-        self._voltage_pub.publish(Float32(data=float(tel.voltage)))
-        self._current_pub.publish(Float32(data=float(tel.current)))
+        # Joints first, they feed the simulation and are the latency-sensitive path
+        if joints is not None:
+            self._publish_joints(joints)
+        if tel is not None:
+            self._state_pub.publish(String(data=tel.state.name))
+            self._publish_odometry(tel)
+            self._voltage_pub.publish(Float32(data=float(tel.voltage)))
+            self._current_pub.publish(Float32(data=float(tel.current)))
 
     def _publish_joints(self, joints):
         # Joints are servo-space degrees, leg-major (coxa, femur, tibia), converted to radians for JointState
