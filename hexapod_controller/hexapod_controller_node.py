@@ -86,6 +86,7 @@ class HexapodControllerNode(Node):
         self.create_subscription(Pose, '/hexapod/cmd_pose', self._cmd_pose_cb, 10)
         self.create_subscription(Float32, '/hexapod/cmd_height', self._cmd_height_cb, 10)
         self.create_subscription(Float32, '/hexapod/cmd_pitch', self._cmd_pitch_cb, 10)
+        self.create_subscription(Float32, '/hexapod/cmd_yaw', self._cmd_yaw_cb, 10)
         self.create_subscription(String, '/hexapod/cmd_gait', self._cmd_gait_cb, 10)
 
         # One serial loop: a single thread owns the port, writing the command or
@@ -224,6 +225,11 @@ class HexapodControllerNode(Node):
 
     def _cmd_pitch_cb(self, msg: Float32):
         self._pose[4] = msg.data
+        self._pose_dirty = True
+
+    def _cmd_yaw_cb(self, msg: Float32):
+        # Body yaw, not the walking yaw rate, this only rotates the body over the feet
+        self._pose[5] = msg.data
         self._pose_dirty = True
 
     def _cmd_gait_cb(self, msg: String):
