@@ -89,6 +89,60 @@ ROS2 parameters can be overridden at launch time without touching the code:
 ros2 run hexapod_controller hexapod_controller --ros-args -p port:=/dev/ttyAMA0 -p config_path:=/path/to/config.yml
 ```
 
+## 📷 Camera (optional)
+
+The robot can carry a Raspberry Pi Camera Module 2 / NoIR (IMX219). It is optional, you can skip this section and everything else will work exactly the same.
+
+### One-time setup on the Pi
+
+On Ubuntu Server the camera does not work out of the box: the sensor overlay is not enabled, and the packaged libcamera that ROS uses cannot enumerate the sensor on a Pi 5. `scripts/pi_camera_setup.sh` fixes both. Run it on the Pi as your normal user:
+
+```bash
+./scripts/pi_camera_setup.sh
+```
+
+It tells you when it needs a reboot. Reboot, run it again, and repeat until it says done (usually one or two reboots). If the packaged libcamera turns out to be broken it builds one from source, which takes 15-25 minutes and happens automatically.
+
+> Note: the script only prepares the environment. The camera stays free until you launch a node.
+
+Check it any time with:
+
+```bash
+./scripts/pi_camera_setup.sh status
+```
+
+### Launch the robot with the camera
+
+```bash
+ros2 launch hexapod_controller hexapod.launch.py camera:=true
+```
+
+Without `camera:=true` you get the controller alone. The usual parameters still work:
+
+```bash
+ros2 launch hexapod_controller hexapod.launch.py camera:=true port:=/dev/ttyAMA0
+```
+
+### Launch the camera alone
+
+```bash
+ros2 launch hexapod_controller camera.launch.py
+ros2 launch hexapod_controller camera.launch.py camera_width:=1280 camera_height:=720
+```
+
+Either way you get `/camera/image_raw`, `/camera/image_raw/compressed` and `/camera/camera_info`.
+
+> Note: only one process can use the camera at a time. If a second one starts it fails with `no cameras available`, which looks like a broken setup but only means the camera is already in use.
+
+To view the feed from another machine, subscribe to `/camera/image_raw/compressed`. The raw topic is roughly 28 MB/s at 640x480, far more than Wi-Fi carries.
+
+```bash
+ros2 run rqt_image_view rqt_image_view
+```
+
+The `Unable to open camera calibration file` warning on startup is harmless, it just means the camera has no intrinsic calibration yet. Images stream normally.
+
+
 ## 🤝 Contribution
 
 Feel free to contribute by opening issues or submitting pull requests. For further information, check out the [main Hexapod repository](https://github.com/ggldnl/Hexapod). Give a ⭐️ to this project if you liked the content.
