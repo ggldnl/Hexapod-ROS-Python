@@ -1,8 +1,9 @@
-# Hexapod robot configuration for the ROS2 node.
+# Hexapod robot configuration.
 #
-# The node loads this file at launch and provisions the Servo2040 with it, one
-# section per message, before enabling the board. Edit it here to change the
-# robot description without touching the code, then relaunch the node.
+# The controller pushes these to the Servo2040 at connect (provisioning), one
+# section per message, before enable(). The board ships with baked defaults, 
+# so it also runs standalone; this YAML just lets you override per-robot values 
+# (notably per-servo `pulses`, written by the calibration tool) without reflashing. 
 # See the firmware config for details.
 #
 # Canonical leg order (must not be reordered): front_right, middle_right,
@@ -13,18 +14,27 @@
 
 kinematics:
 
-  # Leg link lengths (mm), shared by all six legs
+  # Leg link geometry (mm), shared by all six legs. `coxa` is the RADIAL
+  # distance from the coxa axis out to the coxa-femur joint; `coxa_offset` is
+  # how far that joint sits to the side of the axis (+ left, looking out along
+  # the leg), which carries the whole femur/tibia plane with it. It is 0 on this
+  # robot: the limb runs straight down the plane through the coxa axis. Beware
+  # the URDF's joint frames, which sit off to one side ALONG their own axes and
+  # make it look like 22.4 -- only the meshes say where the leg really is.
   legs:
-    coxa: 62
-    femur: 77
-    tibia: 100
+    coxa: 68.0
+    coxa_offset: 0.0
+    femur: 76.7
+    tibia: 119.6
 
   standing_height: 80.0   # mm, body height when standing
-  stance_radius: 155.0    # mm, neutral foot distance from its mount
+  stance_radius: 175.0    # mm, neutral foot distance from its mount
 
   # Where each leg mounts on the body: position [x, y, z] mm and orientation
-  # [roll, pitch, yaw] deg, relative to the body centre. This robot is planar,
-  # so z and roll/pitch are 0 and the firmware uses only x, y and yaw
+  # [roll, pitch, yaw] deg, relative to the body center. The coxa axis is
+  # vertical, so roll/pitch cannot be mounted and do not ship; x, y, z and yaw
+  # do. z is the height of the leg's coxa-femur joint over the body origin,
+  # which is 0 when the body origin is taken on that plane (it is, here)
   mounts:
     front_right:
       position: [82.0, -57.0, 0.0]
@@ -56,23 +66,23 @@ gaits:
   cycle_time: 0.8   # s
 
   # duty_factor: fraction of the cycle a foot is on the ground
-  # max_stride:  reachable step ceiling (mm), speed grows the step up to here
+  # max_stride:  reachable step ceiling (mm); speed grows the step up to here
   tripod:
     duty_factor: 0.5
     step_height: 60.0    # mm
-    max_stride: 120.0    # mm, top speed around 300 mm/s
+    max_stride: 120.0    # mm, top speed ~300 mm/s
     overlap: 0.0
 
   wave:
-    duty_factor: 0.8333  # a slow, cautious gait can have a higher duty factor
+    duty_factor: 0.8333  # a slow, cautious gait can have higher duty factor
     step_height: 60.0    # mm
-    max_stride: 90.0     # mm, top speed around 135 mm/s
+    max_stride: 90.0     # mm, top speed ~135 mm/s
     overlap: 0.0
 
   ripple:
     duty_factor: 0.67
     step_height: 60.0    # mm
-    max_stride: 110.0    # mm, top speed around 205 mm/s
+    max_stride: 110.0    # mm, top speed ~205 mm/s
     overlap: 0.0
 
 safety:
@@ -92,7 +102,7 @@ safety:
   # (kin_deg * direction + trim) is clamped to these before it drives the servos
   coxa_range: [-90, 90]
   femur_range: [-90, 90]
-  tibia_range: [-120, 0]   # clearance at the tibia minimum, the servo may stall
+  tibia_range: [-90, 90]
 
   # Body-pose command limits (offsets from standing), each an independent [min, max]
   x_range: [-50, 50]       # mm
@@ -115,15 +125,15 @@ hardware:
     front_left:   [15, 16, 17]
 
   # Servo calibration offsets in degrees, per leg [coxa, femur, tibia]. Structural
-  # (e.g. the tibia link is a triangle, so servo -163 deg is kinematic 0). With
-  # direction this is the servo-kinematic map, the clamp lives in safety.*_range
+  # (e.g. the tibia link is a triangle, so servo -163 deg = kinematic 0). With
+  # `direction` this is the servo-kinematic map; the clamp lives in safety.*_range
   trim:
-    front_right:  [0, 0, -163]
-    middle_right: [0, 0, -163]
-    rear_right:   [0, 0, -163]
-    rear_left:    [0, 0, -163]
-    middle_left:  [0, 0, -163]
-    front_left:   [0, 0, -163]
+    front_right:  [0, 0, -69.5]
+    middle_right: [0, 0, -69.5]
+    rear_right:   [0, 0, -69.5]
+    rear_left:    [0, 0, -69.5]
+    middle_left:  [0, 0, -69.5]
+    front_left:   [0, 0, -69.5]
 
   # Servo direction multipliers (1 or -1), per leg [coxa, femur, tibia]
   direction:
@@ -135,10 +145,10 @@ hardware:
     front_left:   [-1, 1, -1]
 
   # Measured per-servo pulse widths at [-90, 0, +90] degrees (microseconds),
-  # written by the calibration tool. Independent of the joint's structural range
-  # (that lives in hardware.trim/direction and safety.*_range). The values here
-  # are placeholders until calibrated, per leg the order is [coxa, femur, tibia]
-  # and each triple is [pulse@-90, pulse@0, pulse@+90]
+  # written by controller/../calibrate.py. This is independent of the 
+  # joint's structural range (that lives in hardware.trim/direction + safety.*_range).
+  # The values used are placeholders until calibrated; per leg the order is
+  # [coxa, femur, tibia], and each triple is [pulse@-90, pulse@0, pulse@+90]
   pulses:
     front_right:  [[500, 1500, 2500], [500, 1500, 2500], [500, 1500, 2500]]
     middle_right: [[500, 1500, 2500], [500, 1500, 2500], [500, 1500, 2500]]
