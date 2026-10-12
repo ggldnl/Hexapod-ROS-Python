@@ -95,8 +95,12 @@ safety:
   voltage_min: 5.0         # V, software low-voltage cutoff to FAULT
   current_max: 12.0        # A, software over-current cutoff to FAULT
 
-  lin_vel_max: 300         # mm/s
-  ang_vel_max: 60          # deg/s
+  # Fastest the gaits can actually walk, so the full stick travel is usable. Tripod
+  # reaches max_stride / (duty_factor * cycle_time) = 90 / (0.55 * 0.8) = 205 mm/s,
+  # and turning tops out where the outermost foot (232 mm from the center) hits
+  # max_stride: 50 deg/s. Recompute both when cycle_time or the tripod numbers change
+  lin_vel_max: 205         # mm/s
+  ang_vel_max: 50          # deg/s
   vel_smooth_tau: 0.05     # s, first-order velocity smoothing
 
   body_lin_vel_max: 50     # mm/s, body-pose slew

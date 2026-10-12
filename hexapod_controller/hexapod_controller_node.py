@@ -5,6 +5,7 @@ import yaml
 import rclpy
 import tf2_ros
 from rclpy.node import Node
+from rcl_interfaces.msg import ParameterDescriptor
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Header, Float32, Bool
@@ -16,6 +17,9 @@ from hexapod import connect, GaitId
 
 
 GAITS = {'tripod': GaitId.TRIPOD, 'wave': GaitId.WAVE, 'ripple': GaitId.RIPPLE}
+
+# Body-pose command limits (safety.*_range in the config), each [min, max] in mm or deg
+BODY_RANGES = ('x_range', 'y_range', 'z_range', 'roll_range', 'pitch_range', 'yaw_range')
 
 
 class HexapodControllerNode(Node):
@@ -53,6 +57,12 @@ class HexapodControllerNode(Node):
 
         self.lin_vel_max = config['safety'].get('lin_vel_max', 300)
         self.ang_vel_max = config['safety'].get('ang_vel_max', 60)
+
+        # Body-pose limits from the config, exposed read-only so clients such as the
+        # joystick teleop take them from here instead of hardcoding their own copy
+        for key in BODY_RANGES:
+            self.declare_parameter(key, [float(v) for v in config['safety'][key]],
+                                   ParameterDescriptor(read_only=True))
 
         # Open the serial link and provision the board from the config
         self.get_logger().info('Connecting to the Servo2040 and provisioning...')
