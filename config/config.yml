@@ -75,7 +75,7 @@ gaits:
   tripod:
     duty_factor: 0.5
     step_height: 60.0    # mm
-    max_stride: 120.0    # mm, top speed ~300 mm/s
+    max_stride: 90.0     # mm, top speed ~225 mm/s; keeps the corner tibias within ~16 deg of vertical
     overlap: 0.0
 
   wave:
