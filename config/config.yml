@@ -73,20 +73,20 @@ gaits:
   # duty_factor: fraction of the cycle a foot is on the ground
   # max_stride:  reachable step ceiling (mm); speed grows the step up to here
   tripod:
-    duty_factor: 0.5
-    step_height: 60.0    # mm
-    max_stride: 90.0     # mm, top speed ~225 mm/s; keeps the corner tibias within ~16 deg of vertical
+    duty_factor: 0.55    # > 0.5 so both tripods share the load briefly at each switch
+    step_height: 30.0    # mm
+    max_stride: 90.0     # mm, top speed ~205 mm/s; keeps the corner tibias within ~16 deg of vertical
     overlap: 0.0
 
   wave:
     duty_factor: 0.8333  # a slow, cautious gait can have higher duty factor
-    step_height: 60.0    # mm
+    step_height: 30.0    # mm
     max_stride: 90.0     # mm, top speed ~135 mm/s
     overlap: 0.0
 
   ripple:
     duty_factor: 0.67
-    step_height: 60.0    # mm
+    step_height: 30.0    # mm
     max_stride: 110.0    # mm, top speed ~205 mm/s
     overlap: 0.0
 
