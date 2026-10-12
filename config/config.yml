@@ -28,7 +28,12 @@ kinematics:
     tibia: 119.6
 
   standing_height: 80.0   # mm, body height when standing
-  stance_radius: 175.0    # mm, neutral foot distance from its mount
+  # mm, neutral foot distance from its mount (the coxa axis). Chosen so the tibia
+  # is vertical at standing_height: coxa + femur * cos(asin((tibia - standing_height) / femur)).
+  # A vertical tibia puts the foot under the tibia joint, so the body weight does
+  # not torque the tibia servo and the femur lever stays short. Recompute it when
+  # standing_height or the link lengths change
+  stance_radius: 133.7
 
   # Where each leg mounts on the body: position [x, y, z] mm and orientation
   # [roll, pitch, yaw] deg, relative to the body center. The coxa axis is
