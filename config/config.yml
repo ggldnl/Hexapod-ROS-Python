@@ -67,27 +67,31 @@ kinematics:
 
 gaits:
 
-  # One full gait cycle every cycle_time seconds at any speed (constant cadence)
-  cycle_time: 0.8   # s
+  # One full gait cycle every cycle_time seconds at any speed (constant cadence),
+  # shared by every gait. Each leg swings for (1 - duty_factor) of the cycle, so
+  # wave (1/6) and ripple (1/3) swing much faster than tripod (0.45). Their lift
+  # and stride are cut to keep the peak joint speed under ~400 deg/s, inside the
+  # MG996R's ~430 deg/s no-load. Retune all three whenever cycle_time changes
+  cycle_time: 0.65  # s
 
   # duty_factor: fraction of the cycle a foot is on the ground
   # max_stride:  reachable step ceiling (mm); speed grows the step up to here
   tripod:
     duty_factor: 0.55    # > 0.5 so both tripods share the load briefly at each switch
-    step_height: 30.0    # mm
-    max_stride: 90.0     # mm, top speed ~205 mm/s; keeps the corner tibias within ~16 deg of vertical
+    step_height: 30.0    # mm, 290 ms swing
+    max_stride: 90.0     # mm, top speed ~252 mm/s; keeps the corner tibias within ~16 deg of vertical
     overlap: 0.0
 
   wave:
-    duty_factor: 0.8333  # a slow, cautious gait can have higher duty factor
-    step_height: 30.0    # mm
-    max_stride: 90.0     # mm, top speed ~135 mm/s
+    duty_factor: 0.8333  # 5/6: one leg in the air at a time; any lower and two swing at once
+    step_height: 12.5    # mm, 108 ms swing: a higher lift outruns the servos
+    max_stride: 45.0     # mm, top speed ~83 mm/s
     overlap: 0.0
 
   ripple:
-    duty_factor: 0.67
-    step_height: 30.0    # mm
-    max_stride: 110.0    # mm, top speed ~205 mm/s
+    duty_factor: 0.67    # ~2/3: one diagonal pair in the air at a time
+    step_height: 20.0    # mm, 215 ms swing
+    max_stride: 85.0     # mm, top speed ~195 mm/s
     overlap: 0.0
 
 safety:
@@ -96,12 +100,15 @@ safety:
   current_max: 12.0        # A, software over-current cutoff to FAULT
 
   # Fastest the gaits can actually walk, so the full stick travel is usable. Tripod
-  # reaches max_stride / (duty_factor * cycle_time) = 90 / (0.55 * 0.8) = 205 mm/s,
+  # reaches max_stride / (duty_factor * cycle_time) = 90 / (0.55 * 0.65) = 252 mm/s,
   # and turning tops out where the outermost foot (232 mm from the center) hits
-  # max_stride: 50 deg/s. Recompute both when cycle_time or the tripod numbers change
-  lin_vel_max: 205         # mm/s
-  ang_vel_max: 50          # deg/s
-  vel_smooth_tau: 0.05     # s, first-order velocity smoothing
+  # max_stride: 62 deg/s. Recompute both when cycle_time or the tripod numbers change
+  lin_vel_max: 252         # mm/s
+  ang_vel_max: 62          # deg/s
+  # s, first-order velocity smoothing. A stop shrinks the stride of the grounded
+  # feet as the speed decays; faster than this and a full-speed stop asks the
+  # joints for more than the servos can do (~580 deg/s at 0.05 s, ~420 at 0.2 s)
+  vel_smooth_tau: 0.2
 
   body_lin_vel_max: 50     # mm/s, body-pose slew
   body_ang_vel_max: 30     # deg/s, body-pose slew
