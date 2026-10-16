@@ -144,12 +144,12 @@ hardware:
   # (e.g. the tibia link is a triangle, so servo -163 deg = kinematic 0). With
   # `direction` this is the servo-kinematic map; the clamp lives in safety.*_range
   trim:
-    front_right:  [0, 0, -69.5]
-    middle_right: [0, 0, -69.5]
-    rear_right:   [0, 0, -69.5]
-    rear_left:    [0, 0, -69.5]
-    middle_left:  [0, 0, -69.5]
-    front_left:   [0, 0, -69.5]
+    front_right:  [0, 0, -90]
+    middle_right: [0, 0, -90]
+    rear_right:   [0, 0, -90]
+    rear_left:    [0, 0, -90]
+    middle_left:  [0, 0, -90]
+    front_left:   [0, 0, -90]
 
   # Servo direction multipliers (1 or -1), per leg [coxa, femur, tibia]
   direction:
